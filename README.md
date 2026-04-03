@@ -25,8 +25,16 @@ In the CLI, use `help` for a command list or `help <command>` for detailed help 
 > help meld
 ```
 
+To display colored suit symbols (♠ ♥ ♦ ♣ with red for hearts/diamonds):
+
 ```bash
-uv run canasta --north human --south random
+uv run canasta --colors
+uv run canasta --north human --south random --colors
+```
+
+Run with bots (without colors):
+
+```bash
 uv run canasta --north greedy --south random --bot-seed 7
 uv run canasta --north safe --south greedy
 uv run canasta --north aggro --south planner

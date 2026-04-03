@@ -4,8 +4,15 @@ import argparse
 
 from canasta.bots import BotKind, TurnBot, build_bot, play_bot_turn
 from canasta.engine import CanastaEngine, RuleError
-from canasta.model import PlayerId, hand_labels
+from canasta.model import Card, PlayerId, hand_labels
 from canasta.rules import discard_pile_is_frozen
+
+# ANSI color codes
+_RED = "\033[91m"
+_RESET = "\033[0m"
+
+# Suit symbol mapping
+_SUIT_SYMBOLS = {"S": "♠", "H": "♥", "D": "♦", "C": "♣", None: ""}
 
 HELP_SUMMARY = (
     "Commands:\n"
@@ -69,14 +76,29 @@ HELP_COMMANDS = {
         "  Banks the current round's scores and resets melds/hand.\n"
         "  The previous round's winner starts the new round.\n"
     ),
-    "quit": (
-        "quit\n"
-        "  Exit the game immediately.\n"
-    ),
+    "quit": ("quit\n  Exit the game immediately.\n"),
 }
 
 
-def _render_state(engine: CanastaEngine) -> str:
+def _card_label(card: Card, colors: bool = False) -> str:
+    """Format a card label with optional suit symbols and colors."""
+    if card.rank == "JOKER":
+        return "JOKER"
+    if not colors:
+        return card.label()
+
+    symbol = _SUIT_SYMBOLS.get(card.suit, card.suit or "")
+    if card.suit in ("H", "D"):
+        return f"{_RED}{card.rank}{symbol}{_RESET}"
+    return f"{card.rank}{symbol}"
+
+
+def _hand_labels(hand: list[Card], colors: bool = False) -> list[str]:
+    """Get card labels with optional colors."""
+    return [_card_label(card, colors) for card in hand]
+
+
+def _render_state(engine: CanastaEngine, colors: bool = False) -> str:
     state = engine.state
     player = state.players[state.current_player]
     opponent_id = (
@@ -84,14 +106,16 @@ def _render_state(engine: CanastaEngine) -> str:
     )
     opponent = state.players[opponent_id]
 
-    hand = " ".join(f"{i}:{label}" for i, label in enumerate(hand_labels(player.hand)))
+    hand = " ".join(
+        f"{i}:{label}" for i, label in enumerate(_hand_labels(player.hand, colors))
+    )
     meld_lines = [
-        f"{idx}: {' '.join(card.label() for card in meld.cards)}"
+        f"{idx}: {' '.join(_card_label(card, colors) for card in meld.cards)}"
         for idx, meld in enumerate(player.melds)
     ]
     meld_block = "\n".join(meld_lines) if meld_lines else "(none)"
     red_three_block = (
-        " ".join(c.label() for c in player.red_threes)
+        " ".join(_card_label(c, colors) for c in player.red_threes)
         if player.red_threes
         else "(none)"
     )
@@ -100,7 +124,7 @@ def _render_state(engine: CanastaEngine) -> str:
         f"Round: {state.round_number}\n"
         f"Current: {state.current_player.value}\n"
         f"Winner: {state.winner.value if state.winner is not None else '(none)'}\n"
-        f"Stock: {len(state.stock)}  Discard top: {state.discard[-1].label()}  Frozen: {discard_pile_is_frozen(state.discard)}\n"
+        f"Stock: {len(state.stock)}  Discard top: {_card_label(state.discard[-1], colors)}  Frozen: {discard_pile_is_frozen(state.discard)}\n"
         f"Your hand: {hand or '(empty)'}\n"
         f"Your melds:\n{meld_block}\n"
         f"Your red threes: {red_three_block}\n"
@@ -124,6 +148,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="human",
     )
     parser.add_argument("--bot-seed", type=int, default=0)
+    parser.add_argument(
+        "--colors",
+        action="store_true",
+        help="Use colored suit symbols in card display",
+    )
     return parser.parse_args(argv)
 
 
@@ -147,7 +176,6 @@ def main(argv: list[str] | None = None) -> int:
     print("Canasta CLI")
     print(HELP_SUMMARY)
     print(f"Controllers: north={args.north} south={args.south}")
-
 
     while True:
         current = engine.state.current_player
@@ -180,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     print(HELP_SUMMARY)
             elif cmd == "state":
-                print(_render_state(engine))
+                print(_render_state(engine, colors=args.colors))
             elif cmd == "draw":
                 print(engine.draw_stock().message)
             elif cmd == "pickup":
