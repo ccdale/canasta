@@ -7,6 +7,7 @@ Standalone Canasta project built to teach game architecture incrementally.
 - Pure Python game model and rules.
 - Turn-based local two-player engine.
 - CLI adapter for interactive play.
+- Player hands auto-sort by rank/suit for stable command indexing.
 
 ## Quick Start
 

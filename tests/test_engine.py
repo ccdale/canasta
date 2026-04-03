@@ -3,13 +3,28 @@
 import pytest
 
 from canasta.engine import CanastaEngine, RuleError
-from canasta.model import Card, Meld, PlayerId
+from canasta.model import RANKS, SUITS, Card, Meld, PlayerId
 
 SEED = 42  # fixed for determinism
+RANK_ORDER = {rank: idx for idx, rank in enumerate(RANKS)}
+RANK_ORDER["JOKER"] = len(RANKS)
+SUIT_ORDER = {suit: idx for idx, suit in enumerate(SUITS)}
+SUIT_ORDER[None] = len(SUITS)
 
 
 def make_engine() -> CanastaEngine:
     return CanastaEngine(seed=SEED)
+
+
+def _is_hand_sorted(hand: list[Card]) -> bool:
+    keys = [
+        (
+            RANK_ORDER.get(card.rank, len(RANKS) + 1),
+            SUIT_ORDER.get(card.suit, len(SUITS) + 1),
+        )
+        for card in hand
+    ]
+    return keys == sorted(keys)
 
 
 class TestInit:
@@ -60,6 +75,42 @@ class TestDrawStock:
         eng.draw_stock()
         with pytest.raises(RuleError, match="already drew"):
             eng.draw_stock()
+
+
+class TestHandSorting:
+    def test_hands_sorted_at_round_start(self):
+        eng = make_engine()
+        for player in eng.state.players.values():
+            assert _is_hand_sorted(player.hand)
+
+    def test_draw_keeps_current_hand_sorted(self):
+        eng = make_engine()
+        eng.draw_stock()
+        assert _is_hand_sorted(eng.current_hand())
+
+    def test_pickup_keeps_current_hand_sorted(self):
+        eng = make_engine()
+        eng.state.discard = [Card("9", "C"), Card("A", "D")]
+        hand = eng.current_hand()
+        hand[0] = Card("A", "S")
+        hand[1] = Card("A", "H")
+
+        eng.pickup_discard([0, 1])
+
+        assert _is_hand_sorted(eng.current_hand())
+
+    def test_failed_meld_rolls_back_to_sorted_hand(self):
+        eng = make_engine()
+        eng.draw_stock()
+        hand = eng.current_hand()
+        hand[0] = Card("K", "S")
+        hand[1] = Card("Q", "H")
+        hand[2] = Card("J", "D")
+
+        with pytest.raises(RuleError):
+            eng.create_meld([0, 1, 2])
+
+        assert _is_hand_sorted(eng.current_hand())
 
 
 class TestCreateMeld:

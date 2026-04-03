@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 from canasta.model import (
     DRAW_COUNT_PER_TURN,
+    RANKS,
+    SUITS,
     Card,
     GameState,
     Meld,
@@ -35,6 +37,11 @@ class ActionResult:
 
 
 class CanastaEngine:
+    _RANK_ORDER = {rank: idx for idx, rank in enumerate(RANKS)}
+    _RANK_ORDER["JOKER"] = len(RANKS)
+    _SUIT_ORDER = {suit: idx for idx, suit in enumerate(SUITS)}
+    _SUIT_ORDER[None] = len(SUITS)
+
     def __init__(self, seed: int | None = None) -> None:
         self._rng = random.Random(seed)
         self.state = self._build_round_state(
@@ -76,6 +83,7 @@ class CanastaEngine:
 
         player = self.state.players[self.state.current_player]
         auto = self._collect_red_threes(player)
+        self._sort_hand(player.hand)
         suffix = (
             f" ({auto} red three{'s' if auto != 1 else ''} auto-melded)" if auto else ""
         )
@@ -97,18 +105,21 @@ class CanastaEngine:
             ok, reason = can_pickup_frozen_discard(top_discard, cards)
             if not ok:
                 player.hand.extend(cards)
+                self._sort_hand(player.hand)
                 raise RuleError(reason)
 
         meld_cards = cards + [top_discard]
         ok, reason = validate_meld_cards(meld_cards)
         if not ok:
             player.hand.extend(cards)
+            self._sort_hand(player.hand)
             raise RuleError(f"cannot pick up discard pile: {reason}")
 
         if not player.melds:
             value = opening_meld_value(meld_cards)
             if value < OPENING_MELD_MINIMUM:
                 player.hand.extend(cards)
+                self._sort_hand(player.hand)
                 raise RuleError(
                     f"opening meld must score at least {OPENING_MELD_MINIMUM} points "
                     f"(naturals only); this scores {value}"
@@ -121,6 +132,7 @@ class CanastaEngine:
         self.state.turn_drawn = True
 
         auto = self._collect_red_threes(player)
+        self._sort_hand(player.hand)
         suffix = (
             f" ({auto} red three{'s' if auto != 1 else ''} auto-melded)" if auto else ""
         )
@@ -142,12 +154,14 @@ class CanastaEngine:
         ok, reason = validate_meld_cards(cards)
         if not ok:
             player.hand.extend(cards)
+            self._sort_hand(player.hand)
             raise RuleError(reason)
 
         if not player.melds:
             value = opening_meld_value(cards)
             if value < OPENING_MELD_MINIMUM:
                 player.hand.extend(cards)
+                self._sort_hand(player.hand)
                 raise RuleError(
                     f"opening meld must score at least {OPENING_MELD_MINIMUM} points "
                     f"(naturals only); this scores {value}"
@@ -169,6 +183,7 @@ class CanastaEngine:
         ok, reason = can_add_cards_to_meld(meld, cards)
         if not ok:
             player.hand.extend(cards)
+            self._sort_hand(player.hand)
             raise RuleError(reason)
 
         meld.cards.extend(cards)
@@ -187,6 +202,7 @@ class CanastaEngine:
         ok, reason = can_discard(card)
         if not ok:
             hand.insert(hand_index, card)
+            self._sort_hand(hand)
             raise RuleError(reason)
 
         self.state.discard.append(card)
@@ -255,6 +271,7 @@ class CanastaEngine:
         self.state = state
         for player in self.state.players.values():
             self._collect_red_threes(player)
+            self._sort_hand(player.hand)
         return state
 
     def _collect_red_threes(self, player: PlayerState) -> int:
@@ -290,3 +307,12 @@ class CanastaEngine:
             cards.append(hand.pop(idx))
         cards.reverse()
         return cards
+
+    @classmethod
+    def _sort_hand(cls, hand: list[Card]) -> None:
+        hand.sort(
+            key=lambda card: (
+                cls._RANK_ORDER.get(card.rank, len(RANKS) + 1),
+                cls._SUIT_ORDER.get(card.suit, len(SUITS) + 1),
+            )
+        )

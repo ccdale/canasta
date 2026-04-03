@@ -110,7 +110,7 @@ def test_cards_returned_to_hand_on_failure(self):
 
 ---
 
-## Coverage summary (140 tests)
+## Coverage summary (144 tests)
 
 | Area | Tests | What they verify |
 |------|-------|-----------------|
@@ -127,6 +127,7 @@ def test_cards_returned_to_hand_on_failure(self):
 | `hand_score` / `meld_score` | 8 | individual card values, mixed hand, canasta bonus |
 | Engine init | 5 | hand sizes, stock size, discard pile, starting player, draw flag |
 | `draw_stock` | 4 | hand growth, stock shrinkage, flag set, double-draw error |
+| Hand sorting | 4 | initial sorted hands, draw/pickup sorted invariants, sorted rollback after invalid meld |
 | `create_meld` | 4 | success, draw-first gate, invalid meld error, state rollback |
 | `add_to_meld` | 3 | success, draw-first gate, invalid meld index |
 | `discard` | 6 | hand shrinkage, pile growth, turn rotation, draw-first gate, red-three block, invalid index |

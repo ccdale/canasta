@@ -13,7 +13,7 @@ The codebase is divided into four strictly-layered modules:
 model.py   ← pure data structures (no logic)
 rules.py   ← pure functions over data (no state)
 engine.py  ← stateful orchestration (uses rules)
-bots.py    ← pluggable turn strategies (random/greedy)
+bots.py    ← pluggable turn strategies (random/greedy/safe/aggro/planner)
 cli.py     ← I/O and command parsing (uses engine)
 ```
 
@@ -93,6 +93,8 @@ discard()             # ends the turn
 ```
 
 `pickup_discard(hand_indexes)` takes the entire discard pile into the player's turn, but requires the top discard card to be used immediately in a newly created meld with the selected hand cards. The remainder of the pile goes into the player's hand.
+
+Hands are kept sorted automatically by rank/suit after deal, draw, pickup, and rollback paths, so CLI hand indexes always reflect a deterministic order.
 
 The discard pile's frozen state is derived from its contents rather than stored separately: if any wild card or black three exists anywhere in the pile, the pile is considered frozen. In that state, pickup is restricted to an exact natural pair matching a natural top discard.
 
