@@ -23,25 +23,31 @@ CARD_LIFT = 10  # pixels a selected card is raised above the row
 _BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner"]
 
 # Green-felt table CSS matching patience/ui/theme.py style.
-_TABLE_CSS = b"""
-@media (prefers-color-scheme: light) {
-    .table-window {
+_TABLE_CSS = f"""
+@media (prefers-color-scheme: light) {{
+    .table-window {{
         background-color: #dce6d7;
         background-image: linear-gradient(180deg, #edf3e9 0%, #dfe9d9 38%, #d3e0cd 100%);
-    }
-}
-@media (prefers-color-scheme: dark) {
-    .table-window {
+    }}
+}}
+@media (prefers-color-scheme: dark) {{
+    .table-window {{
         background-color: #132219;
         background-image: linear-gradient(180deg, #1b2d22 0%, #14251b 42%, #0e1b14 100%);
-    }
-}
-.section-label { font-weight: bold; }
-.hand-card {
+    }}
+}}
+.section-label {{ font-weight: bold; }}
+.hand-card {{
     padding: 2px;
     min-width: 0;
     min-height: 0;
-}
+}}
+.card-image {{
+    min-width: {CARD_W}px;
+    max-width: {CARD_W}px;
+    min-height: {CARD_H}px;
+    max-height: {CARD_H}px;
+}}
 """
 
 
@@ -171,19 +177,19 @@ def main(argv: list[str] | None = None) -> int:
         if display is None:
             return
         provider = Gtk.CssProvider()
-        provider.load_from_data(_TABLE_CSS)
+        provider.load_from_string(_TABLE_CSS)
         Gtk.StyleContext.add_provider_for_display(
             display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
     def _build_card_picture(image_path: Path) -> Gtk.Widget:
         picture = Gtk.Picture.new_for_filename(str(image_path))
-        picture.set_size_request(CARD_W, CARD_H)
         picture.set_content_fit(Gtk.ContentFit.FILL)
         picture.set_halign(Gtk.Align.START)
         picture.set_valign(Gtk.Align.START)
         picture.set_hexpand(False)
         picture.set_vexpand(False)
+        picture.add_css_class("card-image")
         return picture
 
     def _build_card_widget(card: Card, assets_root: Path) -> Gtk.Widget:
