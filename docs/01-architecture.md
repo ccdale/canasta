@@ -32,7 +32,7 @@ Defines the canonical types that every other module talks in.
 | `Card(rank, suit)` | Immutable (`frozen=True`) card value. Rank uses single-char strings (`A 2 … 9 T J Q K`) plus the literal `"JOKER"`. |
 | `Meld(cards)` | A group of played cards. Exposes computed properties: `natural_rank`, `natural_count`, `wild_count`, `is_canasta`. |
 | `PlayerState` | A player's `hand`, `melds`, `red_threes`, and running `score`. |
-| `GameState` | The authoritative game snapshot: both `PlayerState`s keyed by `PlayerId`, the `stock`, the `discard` pile, `current_player`, `turn_drawn` flag, and `winner`. |
+| `GameState` | The authoritative game snapshot: both `PlayerState`s keyed by `PlayerId`, the `stock`, the `discard` pile, `current_player`, `round_number`, `turn_drawn` flag, and `winner`. |
 | `PlayerId` | `Enum` with values `NORTH` / `SOUTH`. |
 
 `build_double_deck()` returns the canonical 108-card double deck (104 standard + 4 jokers) in a deterministic order before any shuffle.
@@ -95,11 +95,20 @@ discard()             # ends the turn
 
 The discard pile's frozen state is derived from its contents rather than stored separately: if any wild card or black three exists anywhere in the pile, the pile is considered frozen. In that state, pickup is restricted to an exact natural pair matching a natural top discard.
 
+**Round flow**:
+
+```
+play turns until winner is set
+  → score() reports final round score including hand penalties
+  → total_score() reports banked totals plus the finished round
+next_round()          # banks scores, redeals, increments round number, winner starts
+```
+
 Every method raises `RuleError` (a `ValueError` subclass) for illegal moves, with a plain-English message suitable for display in the CLI.
 
 `ActionResult` is a small frozen dataclass carrying only a `message` string — it lets callers display feedback without inspecting internal state.
 
-After `discard()` the engine calls `_check_winner()` (empty hand + ≥1 canasta → sets `state.winner`) then `_end_turn()` (flips `current_player`, clears `turn_drawn`).
+After `discard()` the engine calls `_check_winner()` (empty hand + ≥1 canasta → sets `state.winner`). If no winner exists, it then calls `_end_turn()` (flips `current_player`, clears `turn_drawn`).
 
 ---
 
@@ -112,9 +121,11 @@ Implements a REPL loop reading from stdin. Supported commands:
 | `help` | Print command list |
 | `state` | Print current game state (hand, melds, scores, stock/discard sizes) |
 | `draw` | Call `engine.draw_stock()` |
+| `pickup i j …` | Call `engine.pickup_discard([i, j, …])` |
 | `meld i j k …` | Call `engine.create_meld([i, j, k, …])` with hand indexes |
 | `add m i j …` | Call `engine.add_to_meld(m, [i, j, …])` |
 | `discard i` | Call `engine.discard(i)` |
+| `next-round` | Call `engine.next_round()` after a winner exists |
 | `quit` | Exit |
 
 All `RuleError` exceptions are caught and printed as plain messages; the game continues.
@@ -128,7 +139,7 @@ All `RuleError` exceptions are caught and printed as plain messages; the game co
 - ~~Picking up the discard pile~~ ✓ done
 - ~~Discard pile freeze / unfreeze~~ ✓ done
 - ~~Hand-card penalties at round end~~ ✓ done
-- Multi-round / cumulative scoring
+- ~~Multi-round / cumulative scoring~~ ✓ done
 - AI player
 - Persistence / save-load
 

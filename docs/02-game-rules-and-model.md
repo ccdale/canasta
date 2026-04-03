@@ -133,8 +133,6 @@ The current implementation supports a simplified discard-pile pickup rule:
 4. If this is the player's opening meld, the usual `OPENING_MELD_MINIMUM` still applies.
 5. After the meld is created, the rest of the discard pile is added to the player's hand.
 
-Discard pile freeze / unfreeze is still not implemented, so there are no extra pickup restrictions beyond the checks above.
-
 ### Discard pile freeze
 
 The pile is considered **frozen** if it contains any:
@@ -203,6 +201,27 @@ Examples:
 
 The current engine applies this penalty only after a winner exists, so in-progress score display remains focused on positive meld/red-three progress.
 
+### Multi-round / cumulative scoring
+
+`PlayerState.score` now stores **banked scores from completed rounds**.
+
+- `engine.score(player_id)` returns the **current round** score
+- `engine.total_score(player_id)` returns the **cumulative total**
+
+Before a round ends, `total_score()` shows only banked prior rounds.
+After a winner exists, `total_score()` includes the just-finished round as well.
+
+### Starting the next round
+
+Once a winner exists, `next_round()`:
+
+1. Adds each player's finished round score into `PlayerState.score`
+2. Builds and shuffles a fresh double deck
+3. Deals fresh hands and a new discard pile
+4. Clears melds and red threes for the new round
+5. Increments `GameState.round_number`
+6. Gives the next opening turn to the previous round's winner
+
 ---
 
 ## Win condition
@@ -212,7 +231,7 @@ After a player discards, `_check_winner` tests:
 1. The current player's hand is **empty**.
 2. The current player has **at least one canasta** among their melds.
 
-Both conditions must hold. If so, `GameState.winner` is set to that player's `PlayerId`. The CLI displays this and the game loop ends.
+Both conditions must hold. If so, `GameState.winner` is set to that player's `PlayerId`. The round then stops accepting further play actions until `next_round()` is called or the user quits.
 
 ---
 
@@ -227,7 +246,7 @@ The following standard Canasta rules are not yet encoded:
 | Picking up the discard pile | ✓ Implemented |
 | Discard pile freeze | ✓ Implemented |
 | Hand-card penalties at round end | ✓ Implemented |
-| Multi-round scoring | Not implemented |
+| Multi-round scoring | ✓ Implemented |
 
 ---
 

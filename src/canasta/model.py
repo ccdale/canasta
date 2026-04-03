@@ -73,6 +73,7 @@ class GameState:
     current_player: PlayerId
     stock: list[Card]
     discard: list[Card]
+    round_number: int = 1
     turn_drawn: bool = False
     winner: PlayerId | None = None
 

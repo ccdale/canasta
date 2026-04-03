@@ -352,6 +352,24 @@ class TestScore:
         eng.state.winner = PlayerId.NORTH
         assert eng.score(PlayerId.SOUTH) == 30 - 20
 
+    def test_total_score_before_round_end_is_banked_only(self):
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        north.score = 125
+        north.melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]
+        north.red_threes = []
+        assert eng.total_score(PlayerId.NORTH) == 125
+
+    def test_total_score_after_round_end_includes_current_round(self):
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        north.score = 125
+        north.melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]
+        north.red_threes = []
+        north.hand = []
+        eng.state.winner = PlayerId.NORTH
+        assert eng.total_score(PlayerId.NORTH) == 125 + 60
+
 
 class TestWinner:
     def test_discard_sets_winner_with_empty_hand_and_canasta(self):
@@ -383,6 +401,72 @@ class TestWinner:
         eng.state.turn_drawn = True
         eng.discard(0)
         assert eng.state.winner is None
+
+    def test_winning_discard_does_not_end_turn(self):
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        north.melds = [
+            Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D"), Card("A", "C"), Card("A", "S"), Card("A", "H"), Card("A", "D")])
+        ]
+        north.hand = [Card("K", "S")]
+        eng.state.turn_drawn = True
+        eng.discard(0)
+        assert eng.state.current_player == PlayerId.NORTH
+
+
+class TestRounds:
+    def test_round_starts_at_one(self):
+        eng = make_engine()
+        assert eng.state.round_number == 1
+
+    def test_next_round_requires_winner(self):
+        eng = make_engine()
+        with pytest.raises(RuleError, match="round is not over"):
+            eng.next_round()
+
+    def test_round_actions_blocked_after_winner(self):
+        eng = make_engine()
+        eng.state.winner = PlayerId.NORTH
+        with pytest.raises(RuleError, match="round is over"):
+            eng.draw_stock()
+
+    def test_next_round_banks_scores(self):
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        south = eng.state.players[PlayerId.SOUTH]
+        north.melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]
+        north.red_threes = []
+        north.hand = []
+        south.melds = [Meld(cards=[Card("K", "S"), Card("K", "H"), Card("K", "D")])]
+        south.red_threes = []
+        south.hand = [Card("A", "S")]
+        eng.state.winner = PlayerId.NORTH
+
+        eng.next_round()
+
+        assert eng.state.players[PlayerId.NORTH].score == 60
+        assert eng.state.players[PlayerId.SOUTH].score == 10
+
+    def test_next_round_resets_round_state(self):
+        eng = make_engine()
+        eng.state.winner = PlayerId.NORTH
+
+        eng.next_round()
+
+        assert eng.state.round_number == 2
+        assert eng.state.winner is None
+        assert not eng.state.turn_drawn
+        assert len(eng.state.discard) == 1
+        assert len(eng.state.players[PlayerId.NORTH].melds) == 0
+        assert len(eng.state.players[PlayerId.SOUTH].melds) == 0
+
+    def test_next_round_starts_with_winner(self):
+        eng = make_engine()
+        eng.state.winner = PlayerId.SOUTH
+
+        eng.next_round()
+
+        assert eng.state.current_player == PlayerId.SOUTH
 
 
 class TestRedThrees:

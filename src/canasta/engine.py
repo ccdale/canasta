@@ -36,31 +36,34 @@ class ActionResult:
 
 class CanastaEngine:
     def __init__(self, seed: int | None = None) -> None:
-        deck = build_double_deck()
-        random.Random(seed).shuffle(deck)
-
-        north = PlayerState(hand=[], melds=[])
-        south = PlayerState(hand=[], melds=[])
-        for _ in range(11):
-            north.hand.append(deck.pop())
-            south.hand.append(deck.pop())
-
-        discard = [deck.pop()]
-        self.state = GameState(
-            players={PlayerId.NORTH: north, PlayerId.SOUTH: south},
-            current_player=PlayerId.NORTH,
-            stock=deck,
-            discard=discard,
-            turn_drawn=False,
+        self._rng = random.Random(seed)
+        self.state = self._build_round_state(
+            scores={PlayerId.NORTH: 0, PlayerId.SOUTH: 0},
+            starting_player=PlayerId.NORTH,
+            round_number=1,
         )
-        # Auto-meld red threes dealt into opening hands.
-        for player in self.state.players.values():
-            self._collect_red_threes(player)
 
     def current_hand(self) -> list[Card]:
         return self.state.players[self.state.current_player].hand
 
+    def next_round(self) -> ActionResult:
+        if self.state.winner is None:
+            raise RuleError("round is not over")
+
+        scores = {
+            player_id: player.score + self.score(player_id)
+            for player_id, player in self.state.players.items()
+        }
+        winner = self.state.winner
+        self.state = self._build_round_state(
+            scores=scores,
+            starting_player=winner,
+            round_number=self.state.round_number + 1,
+        )
+        return ActionResult(message=f"started round {self.state.round_number}")
+
     def draw_stock(self) -> ActionResult:
+        self._ensure_round_active()
         if self.state.turn_drawn:
             raise RuleError("you already drew this turn")
         if len(self.state.stock) < DRAW_COUNT_PER_TURN:
@@ -79,6 +82,7 @@ class CanastaEngine:
         return ActionResult(message=f"drew 2 cards{suffix}")
 
     def pickup_discard(self, hand_indexes: list[int]) -> ActionResult:
+        self._ensure_round_active()
         player = self.state.players[self.state.current_player]
         if self.state.turn_drawn:
             raise RuleError("you already drew this turn")
@@ -125,6 +129,7 @@ class CanastaEngine:
         )
 
     def create_meld(self, hand_indexes: list[int]) -> ActionResult:
+        self._ensure_round_active()
         player = self.state.players[self.state.current_player]
         if not self.state.turn_drawn:
             raise RuleError("draw before melding")
@@ -152,6 +157,7 @@ class CanastaEngine:
         return ActionResult(message="created meld")
 
     def add_to_meld(self, meld_index: int, hand_indexes: list[int]) -> ActionResult:
+        self._ensure_round_active()
         player = self.state.players[self.state.current_player]
         if not self.state.turn_drawn:
             raise RuleError("draw before melding")
@@ -169,6 +175,7 @@ class CanastaEngine:
         return ActionResult(message="added cards to meld")
 
     def discard(self, hand_index: int) -> ActionResult:
+        self._ensure_round_active()
         if not self.state.turn_drawn:
             raise RuleError("draw before discarding")
 
@@ -184,7 +191,8 @@ class CanastaEngine:
 
         self.state.discard.append(card)
         self._check_winner()
-        self._end_turn()
+        if self.state.winner is None:
+            self._end_turn()
         return ActionResult(message=f"discarded {card.label()}")
 
     def score(self, player_id: PlayerId) -> int:
@@ -192,6 +200,13 @@ class CanastaEngine:
         total = meld_score(player.melds) + red_three_score(player.red_threes)
         if self.state.winner is not None:
             total -= hand_penalty(player.hand)
+        return total
+
+    def total_score(self, player_id: PlayerId) -> int:
+        player = self.state.players[player_id]
+        total = player.score
+        if self.state.winner is not None:
+            total += self.score(player_id)
         return total
 
     def _end_turn(self) -> None:
@@ -208,6 +223,39 @@ class CanastaEngine:
             return
         if any(meld.is_canasta for meld in player.melds):
             self.state.winner = self.state.current_player
+
+    def _ensure_round_active(self) -> None:
+        if self.state.winner is not None:
+            raise RuleError("round is over; start next-round or quit")
+
+    def _build_round_state(
+        self,
+        scores: dict[PlayerId, int],
+        starting_player: PlayerId,
+        round_number: int,
+    ) -> GameState:
+        deck = build_double_deck()
+        self._rng.shuffle(deck)
+
+        north = PlayerState(hand=[], melds=[], score=scores[PlayerId.NORTH])
+        south = PlayerState(hand=[], melds=[], score=scores[PlayerId.SOUTH])
+        for _ in range(11):
+            north.hand.append(deck.pop())
+            south.hand.append(deck.pop())
+
+        state = GameState(
+            players={PlayerId.NORTH: north, PlayerId.SOUTH: south},
+            current_player=starting_player,
+            stock=deck,
+            discard=[deck.pop()],
+            round_number=round_number,
+            turn_drawn=False,
+            winner=None,
+        )
+        self.state = state
+        for player in self.state.players.values():
+            self._collect_red_threes(player)
+        return state
 
     def _collect_red_threes(self, player: PlayerState) -> int:
         """Move red threes from hand to player.red_threes, drawing replacements.

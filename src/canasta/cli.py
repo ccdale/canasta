@@ -13,6 +13,7 @@ HELP_TEXT = (
     "  meld i j k          # Create new meld from hand indexes\n"
     "  add m i j           # Add hand indexes to meld m\n"
     "  discard i\n"
+    "  next-round\n"
     "  quit\n"
 )
 
@@ -38,14 +39,17 @@ def _render_state(engine: CanastaEngine) -> str:
     )
 
     return (
+        f"Round: {state.round_number}\n"
         f"Current: {state.current_player.value}\n"
+        f"Winner: {state.winner.value if state.winner is not None else '(none)'}\n"
         f"Stock: {len(state.stock)}  Discard top: {state.discard[-1].label()}  Frozen: {discard_pile_is_frozen(state.discard)}\n"
         f"Your hand: {hand or '(empty)'}\n"
         f"Your melds:\n{meld_block}\n"
         f"Your red threes: {red_three_block}\n"
         f"Opponent meld count: {len(opponent.melds)}\n"
         f"Turn drawn: {state.turn_drawn}\n"
-        f"Scores north={engine.score(PlayerId.NORTH)} south={engine.score(PlayerId.SOUTH)}"
+        f"Round scores north={engine.score(PlayerId.NORTH)} south={engine.score(PlayerId.SOUTH)}\n"
+        f"Total scores north={engine.total_score(PlayerId.NORTH)} south={engine.total_score(PlayerId.SOUTH)}"
     )
 
 
@@ -55,10 +59,6 @@ def main() -> int:
     print(HELP_TEXT)
 
     while True:
-        if engine.state.winner is not None:
-            print(f"Winner: {engine.state.winner.value}")
-            return 0
-
         raw = input("> ").strip()
         if not raw:
             continue
@@ -88,6 +88,8 @@ def main() -> int:
                 if len(parts) != 2:
                     raise RuleError("usage: discard index")
                 print(engine.discard(int(parts[1])).message)
+            elif cmd == "next-round":
+                print(engine.next_round().message)
             elif cmd == "quit":
                 return 0
             else:
