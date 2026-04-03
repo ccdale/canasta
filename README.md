@@ -17,7 +17,13 @@ uv sync
 uv run canasta
 ```
 
-Run with bots:
+In the CLI, use `help` for a command list or `help <command>` for detailed help on a specific command:
+
+```
+> help
+> help pickup
+> help meld
+```
 
 ```bash
 uv run canasta --north human --south random

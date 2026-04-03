@@ -7,18 +7,73 @@ from canasta.engine import CanastaEngine, RuleError
 from canasta.model import PlayerId, hand_labels
 from canasta.rules import discard_pile_is_frozen
 
-HELP_TEXT = (
+HELP_SUMMARY = (
     "Commands:\n"
-    "  help\n"
-    "  state\n"
-    "  draw\n"
-    "  pickup i j          # Take discard pile by melding the top discard with hand indexes\n"
-    "  meld i j k          # Create new meld from hand indexes\n"
-    "  add m i j           # Add hand indexes to meld m\n"
-    "  discard i\n"
-    "  next-round\n"
-    "  quit\n"
+    "  help [command]      # Show help (optionally for a specific command)\n"
+    "  state               # Show current game state\n"
+    "  draw                # Draw 2 cards from stock\n"
+    "  pickup i j …        # Pick up discard pile by melding top discard with hand indexes\n"
+    "  meld i j k …        # Create new meld from hand indexes\n"
+    "  add m i j …        # Add hand indexes to meld m\n"
+    "  discard i           # Discard a card from hand\n"
+    "  next-round          # Start next round after winner is set\n"
+    "  quit                # Exit\n"
 )
+
+HELP_COMMANDS = {
+    "help": (
+        "help [command]\n"
+        "  Show all available commands or detailed help for a specific command.\n"
+        "  Examples: 'help', 'help pickup', 'help meld'\n"
+    ),
+    "state": (
+        "state\n"
+        "  Display the current game state including your hand, melds, scores,\n"
+        "  stock/discard sizes, and frozen status.\n"
+    ),
+    "draw": (
+        "draw\n"
+        "  Draw 2 cards from the stock to your hand.\n"
+        "  Must be called exactly once per turn before melding or discarding.\n"
+    ),
+    "pickup": (
+        "pickup i j …\n"
+        "  Pick up the discard pile by immediately melding the top discard card\n"
+        "  with the specified hand cards (by index).\n"
+        "  Example: 'pickup 0 1' melds cards at indexes 0 and 1 with the top discard.\n"
+        "  Remaining discard pile cards go into your hand.\n"
+        "  If the discard is frozen, requires exact matching pair of naturals.\n"
+    ),
+    "meld": (
+        "meld i j k …\n"
+        "  Create a new meld from the specified hand cards (by index).\n"
+        "  Example: 'meld 0 1 2' creates a meld from cards at indexes 0, 1, 2.\n"
+        "  Rules: ≥3 cards, ≥1 natural, all naturals same rank, wilds ≤ naturals.\n"
+        "  First meld must score ≥50 points (naturals only).\n"
+    ),
+    "add": (
+        "add meld_index i j …\n"
+        "  Add hand cards to an existing meld.\n"
+        "  Example: 'add 0 5 6' adds cards at indexes 5 and 6 to meld 0.\n"
+        "  Card must match the meld's natural rank or be a wild.\n"
+    ),
+    "discard": (
+        "discard i\n"
+        "  Discard a card from your hand (by index) to end your turn.\n"
+        "  Example: 'discard 0' discards the first card in your hand.\n"
+        "  Cannot discard red threes (3♥ or 3♦).\n"
+    ),
+    "next-round": (
+        "next-round\n"
+        "  Start the next round after a winner is determined.\n"
+        "  Banks the current round's scores and resets melds/hand.\n"
+        "  The previous round's winner starts the new round.\n"
+    ),
+    "quit": (
+        "quit\n"
+        "  Exit the game immediately.\n"
+    ),
+}
 
 
 def _render_state(engine: CanastaEngine) -> str:
@@ -90,8 +145,9 @@ def main(argv: list[str] | None = None) -> int:
     controllers = _build_controllers(args)
 
     print("Canasta CLI")
-    print(HELP_TEXT)
+    print(HELP_SUMMARY)
     print(f"Controllers: north={args.north} south={args.south}")
+
 
     while True:
         current = engine.state.current_player
@@ -114,7 +170,15 @@ def main(argv: list[str] | None = None) -> int:
 
         try:
             if cmd == "help":
-                print(HELP_TEXT)
+                if len(parts) > 1:
+                    subcmd = parts[1].lower()
+                    if subcmd in HELP_COMMANDS:
+                        print(HELP_COMMANDS[subcmd])
+                    else:
+                        print(f"unknown command: {subcmd}")
+                        print(HELP_SUMMARY)
+                else:
+                    print(HELP_SUMMARY)
             elif cmd == "state":
                 print(_render_state(engine))
             elif cmd == "draw":
