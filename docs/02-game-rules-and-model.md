@@ -1,0 +1,150 @@
+# 02 — Game Rules & Data Model
+
+[← Architecture](01-architecture.md) | [Next: Testing Strategy →](03-testing.md)
+
+---
+
+## The deck
+
+Canasta uses a **double deck**: two standard 52-card packs plus two jokers each, giving **108 cards** in total.
+
+```
+104 standard cards  (13 ranks × 4 suits × 2)
+  4 jokers          (no suit)
+```
+
+`build_double_deck()` in `model.py` constructs this in a repeatable order.
+The deck is shuffled at engine startup (optionally with a fixed seed).
+
+---
+
+## Dealing
+
+Each player receives **11 cards** dealt alternately from the top of the shuffled deck.
+One further card is turned face-up to start the **discard pile**.
+
+After dealing:
+
+| Pile | Size |
+|------|------|
+| Each player's hand | 11 cards |
+| Stock (draw pile) | 85 cards |
+| Discard pile | 1 card |
+
+---
+
+## Wild cards
+
+A card is **wild** when `Card.is_wild()` returns `True`.
+That applies to:
+
+- Any card with `rank == "JOKER"`
+- Any card with `rank == "2"` (regardless of suit)
+
+Wild cards can substitute for natural cards in a meld, subject to the ratio constraint below.
+
+---
+
+## Melds
+
+A **meld** is a set of cards played face-up in front of a player.
+
+### Validity rules (enforced by `validate_meld_cards`)
+
+1. **Minimum size** — at least 3 cards.
+2. **At least one natural** — the meld cannot consist entirely of wild cards.
+3. **Uniform rank** — all natural cards must share the same rank.
+4. **Wild-card cap** — the number of wilds may not exceed the number of naturals.
+
+Rule 4 means:
+- 2 naturals + 1 wild ✓
+- 2 naturals + 2 wilds ✓
+- 2 naturals + 3 wilds ✗
+
+### Adding cards to an existing meld
+
+`can_add_cards_to_meld` validates the combined set of old + new cards against the same rules. This means you cannot push a meld over its wild-card cap by adding wilds.
+
+### Canasta
+
+A meld becomes a **canasta** when it reaches 7 or more cards (`Meld.is_canasta`).
+A canasta earns a **+300 bonus** on top of the face-value score of its cards.
+
+---
+
+## Turn structure
+
+Each turn follows a strict sequence:
+
+```
+1. draw_stock()           — draw 2 cards from the stock
+2. (optional, repeatable)
+   create_meld(indexes)   — lay down a new meld from hand cards
+   add_to_meld(m, indexes)— add hand cards to an existing meld
+3. discard(index)         — place one hand card on the discard pile; turn ends
+```
+
+The engine rejects out-of-order actions with a `RuleError`.
+For example, calling `discard` before `draw_stock` raises `"draw before discarding"`.
+
+---
+
+## Discard restrictions
+
+Not every card can be discarded.
+`can_discard` currently enforces one restriction:
+
+- **Red threes** (3♥ and 3♦) may never be discarded.
+
+Other discard rules (freeze/unfreeze of the discard pile) are noted in the architecture doc as not yet implemented.
+
+---
+
+## Scoring
+
+Scores are calculated over **melded cards only** — cards still in hand are not yet penalised.
+
+### Card point values
+
+| Rank | Points |
+|------|--------|
+| JOKER | 50 |
+| 2, A | 20 |
+| K, Q, J, T, 9, 8 | 10 |
+| 7, 6, 5, 4, 3 | 5 |
+
+### Meld bonus
+
+Each canasta (meld ≥ 7 cards) adds **+300** to the meld's total.
+
+`meld_score(melds)` sums everything: card values across all melds plus canasta bonuses.
+
+---
+
+## Win condition
+
+After a player discards, `_check_winner` tests:
+
+1. The current player's hand is **empty**.
+2. The current player has **at least one canasta** among their melds.
+
+Both conditions must hold. If so, `GameState.winner` is set to that player's `PlayerId`. The CLI displays this and the game loop ends.
+
+---
+
+## Known gaps in rule coverage
+
+The following standard Canasta rules are not yet encoded:
+
+| Rule | Status |
+|------|--------|
+| Red three auto-meld when drawn | Not implemented |
+| Picking up the discard pile | Not implemented |
+| Discard pile freeze | Not implemented |
+| Opening meld minimum point threshold | Not implemented |
+| Hand-card penalties at round end | Not implemented |
+| Multi-round scoring | Not implemented |
+
+---
+
+[← Architecture](01-architecture.md) | [Next: Testing Strategy →](03-testing.md)
