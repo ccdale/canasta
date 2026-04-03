@@ -20,6 +20,9 @@ CARD_POINTS = {
 }
 
 
+OPENING_MELD_MINIMUM = 50
+
+
 def validate_meld_cards(cards: list[Card]) -> tuple[bool, str]:
     if len(cards) < 3:
         return False, "meld requires at least 3 cards"
@@ -58,6 +61,14 @@ def red_three_score(red_threes: list[Card]) -> int:
         return 0
     per_card = 200 if count == 4 else 100
     return count * per_card
+
+
+def opening_meld_value(cards: list[Card]) -> int:
+    """Point value of natural cards only — used to check the opening meld minimum.
+
+    Wild cards do not count towards the opening threshold.
+    """
+    return sum(CARD_POINTS[card.rank] for card in cards if card.rank not in WILD_RANKS)
 
 
 def hand_score(cards: list[Card]) -> int:

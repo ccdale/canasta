@@ -55,6 +55,7 @@ All functions are stateless: they take values and return `(bool, str)` tuples (s
 | `validate_meld_cards(cards)` | New meld validity: ≥3 cards, ≥1 natural, all naturals same rank, wilds ≤ naturals. |
 | `can_add_cards_to_meld(meld, cards)` | Delegates to `validate_meld_cards` on the combined card list. |
 | `can_discard(card)` | Rejects red threes (3♥ / 3♦). |
+| `opening_meld_value(cards)` | Sums points for natural cards only (wilds excluded) — used to enforce the opening meld threshold. |
 | `hand_score(cards)` | Sums point values for a list of cards. |
 | `meld_score(melds)` | Sums `hand_score` for all meld cards, adding +300 for each canasta (≥7 cards). |
 
@@ -116,9 +117,9 @@ All `RuleError` exceptions are caught and printed as plain messages; the game co
 ## What is not yet implemented
 
 - ~~Red three auto-meld on draw~~ ✓ done
+- ~~Opening meld minimum point requirement~~ ✓ done
 - Picking up the discard pile
 - Discard pile freeze / unfreeze
-- Opening meld minimum point requirement
 - Hand-card penalties at round end
 - Multi-round / cumulative scoring
 - AI player

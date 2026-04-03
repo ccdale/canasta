@@ -75,7 +75,7 @@ class TestCreateMeld:
     def test_create_valid_meld(self):
         eng = make_engine()
         idxs = self._draw_and_inject(
-            eng, [Card("K", "S"), Card("K", "H"), Card("K", "D")]
+            eng, [Card("A", "S"), Card("A", "H"), Card("A", "D")]
         )
         result = eng.create_meld(idxs)
         assert "meld" in result.message
@@ -110,19 +110,19 @@ class TestAddToMeld:
         eng = make_engine()
         eng.draw_stock()
         hand = eng.current_hand()
-        # Inject 4 Kings for the meld + one extra
+        # Inject 4 Aces — opening value 4×20 = 80 ≥ 50, plus one extra
         for i in range(4):
-            hand[i] = Card("K", ("S", "H", "D", "C")[i])
+            hand[i] = Card("A", ("S", "H", "D", "C")[i])
         eng.create_meld([0, 1, 2])
         return eng, 0  # meld_index=0
 
     def test_add_valid_card(self):
         eng, meld_idx = self._setup_with_meld()
-        # Find the injected 4th king's position after meld creation (it's at index 0)
+        # The 4th Ace (index 3) stays in hand after create_meld([0,1,2])
         hand = eng.current_hand()
-        king_idx = next(i for i, c in enumerate(hand) if c.rank == "K")
+        ace_idx = next(i for i, c in enumerate(hand) if c.rank == "A")
         before_len = len(eng.state.players[PlayerId.NORTH].melds[meld_idx].cards)
-        eng.add_to_meld(meld_idx, [king_idx])
+        eng.add_to_meld(meld_idx, [ace_idx])
         after_len = len(eng.state.players[PlayerId.NORTH].melds[meld_idx].cards)
         assert after_len == before_len + 1
 
@@ -267,3 +267,84 @@ class TestRedThrees:
 
         expected = red_three_score(north.red_threes)
         assert eng.score(PlayerId.NORTH) == expected
+
+
+class TestOpeningMeld:
+    """First meld must meet the OPENING_MELD_MINIMUM natural-card point threshold."""
+
+    def _draw_and_inject(self, eng: CanastaEngine, cards: list[Card]) -> list[int]:
+        eng.draw_stock()
+        hand = eng.current_hand()
+        start = len(hand) - len(cards)
+        for i, card in enumerate(cards):
+            hand[start + i] = card
+        return list(range(start, start + len(cards)))
+
+    def test_opening_meld_below_minimum_rejected(self):
+        # 3 × 7 = 15 points — below 50
+        eng = make_engine()
+        idxs = self._draw_and_inject(
+            eng, [Card("7", "S"), Card("7", "H"), Card("7", "D")]
+        )
+        with pytest.raises(RuleError, match="opening meld"):
+            eng.create_meld(idxs)
+
+    def test_opening_meld_cards_returned_on_rejection(self):
+        eng = make_engine()
+        idxs = self._draw_and_inject(
+            eng, [Card("7", "S"), Card("7", "H"), Card("7", "D")]
+        )
+        before = len(eng.current_hand())
+        with pytest.raises(RuleError):
+            eng.create_meld(idxs)
+        assert len(eng.current_hand()) == before
+
+    def test_opening_meld_at_minimum_accepted(self):
+        # 5 × K = 50 points — exactly at the minimum
+        eng = make_engine()
+        idxs = self._draw_and_inject(
+            eng,
+            [
+                Card("K", "S"),
+                Card("K", "H"),
+                Card("K", "D"),
+                Card("K", "C"),
+                Card("K", "S"),
+            ],
+        )
+        result = eng.create_meld(idxs)
+        assert "meld" in result.message
+
+    def test_opening_meld_above_minimum_accepted(self):
+        # 3 × K = 30 pts < 50 — would fail, so use 3 × A = 60 pts
+        eng = make_engine()
+        idxs = self._draw_and_inject(
+            eng, [Card("A", "S"), Card("A", "H"), Card("A", "D")]
+        )
+        result = eng.create_meld(idxs)
+        assert "meld" in result.message
+
+    def test_wilds_excluded_from_opening_value(self):
+        # A + A + JOKER: naturals = 2 × 20 = 40 pts → still below 50
+        eng = make_engine()
+        idxs = self._draw_and_inject(
+            eng, [Card("A", "S"), Card("A", "H"), Card("JOKER")]
+        )
+        with pytest.raises(RuleError, match="opening meld"):
+            eng.create_meld(idxs)
+
+    def test_subsequent_meld_not_subject_to_minimum(self):
+        # After one valid opening, a second meld of low value is fine.
+        eng = make_engine()
+        # First: open with 3 × A (60 pts) — draws in the same turn
+        idxs1 = self._draw_and_inject(
+            eng, [Card("A", "S"), Card("A", "H"), Card("A", "D")]
+        )
+        eng.create_meld(idxs1)
+        # Still the same turn — inject low-value cards directly and meld
+        hand = eng.current_hand()
+        hand[0] = Card("7", "S")
+        hand[1] = Card("7", "H")
+        hand[2] = Card("7", "D")
+        result = eng.create_meld([0, 1, 2])
+        assert "meld" in result.message

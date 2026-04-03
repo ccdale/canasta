@@ -78,6 +78,18 @@ A **meld** is a set of cards played face-up in front of a player.
 3. **Uniform rank** — all natural cards must share the same rank.
 4. **Wild-card cap** — the number of wilds may not exceed the number of naturals.
 
+### Opening meld minimum
+
+A player’s **first meld** of the round must have enough natural-card point value to meet the opening threshold.
+
+| Constant | Value |
+|----------|-------|
+| `OPENING_MELD_MINIMUM` | 50 points |
+
+`opening_meld_value(cards)` sums only the natural cards (wilds do **not** count).
+If the value falls below the threshold the meld is rejected with a `RuleError` that includes the actual and required scores.
+Once a player has at least one meld on the table, subsequent melds in the same or future turns are not subject to this check.
+
 Rule 4 means:
 - 2 naturals + 1 wild ✓
 - 2 naturals + 2 wilds ✓
@@ -161,9 +173,9 @@ The following standard Canasta rules are not yet encoded:
 | Rule | Status |
 |------|--------|
 | Red three auto-meld when drawn | ✓ Implemented |
+| Opening meld minimum (50 pts natural) | ✓ Implemented |
 | Picking up the discard pile | Not implemented |
 | Discard pile freeze | Not implemented |
-| Opening meld minimum point threshold | Not implemented |
 | Hand-card penalties at round end | Not implemented |
 | Multi-round scoring | Not implemented |
 

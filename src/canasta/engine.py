@@ -13,9 +13,11 @@ from canasta.model import (
     build_double_deck,
 )
 from canasta.rules import (
+    OPENING_MELD_MINIMUM,
     can_add_cards_to_meld,
     can_discard,
     meld_score,
+    opening_meld_value,
     red_three_score,
 )
 
@@ -87,6 +89,15 @@ class CanastaEngine:
         if not ok:
             player.hand.extend(cards)
             raise RuleError(reason)
+
+        if not player.melds:
+            value = opening_meld_value(cards)
+            if value < OPENING_MELD_MINIMUM:
+                player.hand.extend(cards)
+                raise RuleError(
+                    f"opening meld must score at least {OPENING_MELD_MINIMUM} points "
+                    f"(naturals only); this scores {value}"
+                )
 
         player.melds.append(Meld(cards=cards))
         return ActionResult(message="created meld")

@@ -4,10 +4,12 @@ import pytest
 
 from canasta.model import Card, Meld
 from canasta.rules import (
+    OPENING_MELD_MINIMUM,
     can_add_cards_to_meld,
     can_discard,
     hand_score,
     meld_score,
+    opening_meld_value,
     validate_meld_cards,
 )
 
@@ -125,3 +127,23 @@ class TestMeldScore:
             Meld(cards=[c("K", s) for s in ("S", "H", "D", "C")] + [c("K", "S")] * 3)
         ]
         assert meld_score(melds) == 7 * 10 + 300
+
+
+class TestOpeningMeldValue:
+    def test_all_naturals(self):
+        # 3 × K = 30
+        cards = [c("K", "S"), c("K", "H"), c("K", "D")]
+        assert opening_meld_value(cards) == 30
+
+    def test_wilds_excluded(self):
+        # A + A + JOKER: wild excluded → 2 × 20 = 40
+        cards = [c("A", "S"), c("A", "H"), c("JOKER")]
+        assert opening_meld_value(cards) == 40
+
+    def test_minimum_constant(self):
+        assert OPENING_MELD_MINIMUM == 50
+
+    def test_meets_minimum(self):
+        # 2 × A + K = 50
+        cards = [c("A", "S"), c("A", "H"), c("K", "D")]
+        assert opening_meld_value(cards) >= OPENING_MELD_MINIMUM
