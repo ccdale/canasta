@@ -149,9 +149,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--bot-seed", type=int, default=0)
     parser.add_argument(
-        "--colors",
+        "--colours",
         action="store_true",
-        help="Use colored suit symbols in card display",
+        help="Use coloured suit symbols in card display",
     )
     return parser.parse_args(argv)
 
@@ -208,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     print(HELP_SUMMARY)
             elif cmd == "state":
-                print(_render_state(engine, colors=args.colors))
+                print(_render_state(engine, colors=args.colours))
             elif cmd == "draw":
                 print(engine.draw_stock().message)
             elif cmd == "pickup":
