@@ -42,12 +42,6 @@ _TABLE_CSS = f"""
     min-width: 0;
     min-height: 0;
 }}
-.card-image {{
-    min-width: {CARD_W}px;
-    max-width: {CARD_W}px;
-    min-height: {CARD_H}px;
-    max-height: {CARD_H}px;
-}}
 """
 
 
@@ -189,7 +183,6 @@ def main(argv: list[str] | None = None) -> int:
         picture.set_valign(Gtk.Align.START)
         picture.set_hexpand(False)
         picture.set_vexpand(False)
-        picture.add_css_class("card-image")
         return picture
 
     def _build_card_widget(card: Card, assets_root: Path) -> Gtk.Widget:
