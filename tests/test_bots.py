@@ -1,6 +1,6 @@
 """Tests for canasta.bots."""
 
-from canasta.bots import GreedyBot, RandomBot, build_bot, play_bot_turn
+from canasta.bots import GreedyBot, RandomBot, SafeBot, build_bot, play_bot_turn
 from canasta.engine import CanastaEngine
 from canasta.model import Card, PlayerId
 
@@ -17,6 +17,10 @@ class TestBuildBot:
     def test_build_greedy(self):
         bot = build_bot("greedy")
         assert bot.name == "greedy"
+
+    def test_build_safe(self):
+        bot = build_bot("safe")
+        assert bot.name == "safe"
 
 
 class TestBotTurns:
@@ -52,3 +56,35 @@ class TestBotTurns:
         actions = play_bot_turn(eng, GreedyBot())
 
         assert any(action.startswith("discarded ") for action in actions)
+
+
+class TestSafeBot:
+    def test_safe_bot_skips_non_opening_meld(self):
+        hand = [Card("A", "S"), Card("A", "H"), Card("A", "D")]
+        assert SafeBot().choose_meld_indexes(hand, opening_required=False) is None
+
+    def test_safe_bot_opening_prefers_lower_value_candidate(self):
+        hand = [
+            Card("A", "S"),
+            Card("A", "H"),
+            Card("A", "D"),  # 60 if used as opening meld
+            Card("K", "S"),
+            Card("K", "H"),
+            Card("K", "D"),
+            Card("K", "C"),
+            Card("K", "S"),  # 50 with five kings
+        ]
+        idxs = SafeBot().choose_meld_indexes(hand, opening_required=True)
+        assert idxs is not None
+        ranks = [hand[i].rank for i in idxs]
+        assert all(rank == "K" for rank in ranks)
+
+    def test_safe_bot_discard_prefers_black_three(self):
+        hand = [Card("K", "S"), Card("3", "S"), Card("A", "H")]
+        idx = SafeBot().choose_discard_index(hand)
+        assert hand[idx].label() == "3S"
+
+    def test_safe_bot_discard_prefers_singleton_over_pair(self):
+        hand = [Card("4", "S"), Card("4", "H"), Card("5", "C")]
+        idx = SafeBot().choose_discard_index(hand)
+        assert hand[idx].label() == "5C"

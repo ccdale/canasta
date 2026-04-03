@@ -133,8 +133,8 @@ All `RuleError` exceptions are caught and printed as plain messages; the game co
 
 `cli.py` also supports per-seat controller selection:
 
-- `--north human|random|greedy`
-- `--south human|random|greedy`
+- `--north human|random|greedy|safe`
+- `--south human|random|greedy|safe`
 - `--bot-seed <int>` for deterministic random bot behavior
 
 When the current player is bot-controlled, the CLI auto-plays that full turn via `play_bot_turn` from `bots.py`.
@@ -147,6 +147,7 @@ Defines a small strategy protocol plus concrete bot types:
 |-----|----------|
 | `RandomBot` | Chooses legal meld/discard actions stochastically using a seeded RNG. |
 | `GreedyBot` | Prioritizes highest immediate meld value and lowest-point legal discard. |
+| `SafeBot` | Conservative play: opens minimally, then prefers defensive/low-risk discards (black threes, low singleton naturals). |
 
 `build_bot(kind, seed)` instantiates bot implementations and `play_bot_turn(engine, bot)` executes one full legal turn (`draw` → meld attempts → `discard`).
 
@@ -160,7 +161,7 @@ Defines a small strategy protocol plus concrete bot types:
 - ~~Discard pile freeze / unfreeze~~ ✓ done
 - ~~Hand-card penalties at round end~~ ✓ done
 - ~~Multi-round / cumulative scoring~~ ✓ done
-- ~~AI player~~ ✓ done (`random`, `greedy`)
+- ~~AI player~~ ✓ done (`random`, `greedy`, `safe`)
 - Persistence / save-load
 
 ---

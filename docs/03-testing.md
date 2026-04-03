@@ -110,7 +110,7 @@ def test_cards_returned_to_hand_on_failure(self):
 
 ---
 
-## Coverage summary (129 tests)
+## Coverage summary (134 tests)
 
 | Area | Tests | What they verify |
 |------|-------|-----------------|
@@ -136,7 +136,7 @@ def test_cards_returned_to_hand_on_failure(self):
 | Red threes (engine) | 9 | auto-meld at init, hand size preserved, mid-turn trigger, message, `red_three_score` (1/2/4), score integration |
 | Winner detection | 3 | winner set only when hand empties with a canasta; winning discard keeps turn on winner |
 | Multi-round lifecycle | 6 | initial round number, next-round gate, actions blocked after winner, score banking, round reset, winner starts next round |
-| Bot behavior | 5 | bot factory wiring, random legal turn completion, greedy opening meld preference, legal discard behavior |
+| Bot behavior | 10 | bot factory wiring (`random`/`greedy`/`safe`), random legal turn completion, greedy opening meld preference, safe conservative meld behavior, and safe discard heuristics |
 
 ---
 

@@ -22,6 +22,7 @@ Run with bots:
 ```bash
 uv run canasta --north human --south random
 uv run canasta --north greedy --south random --bot-seed 7
+uv run canasta --north safe --south greedy
 ```
 
 Run tests:
@@ -35,5 +36,5 @@ uv run pytest -q
 1. Model and rules as pure functions.
 2. Engine command handlers that mutate game state safely.
 3. CLI layer that delegates all logic to the engine.
-4. Configurable AI opponents (`random`, `greedy`) with deterministic seeds.
+4. Configurable AI opponents (`random`, `greedy`, `safe`) with deterministic seeds.
 5. Optional GUI adapter later.

@@ -13,7 +13,7 @@ from canasta.rules import (
     opening_meld_value,
 )
 
-BotKind = Literal["random", "greedy"]
+BotKind = Literal["random", "greedy", "safe"]
 
 
 class TurnBot(Protocol):
@@ -69,11 +69,57 @@ class GreedyBot:
         return min(safe, key=lambda idx: (hand_score([hand[idx]]), hand[idx].is_wild()))
 
 
+@dataclass
+class SafeBot:
+    """Conservative bot: cautious melding and low-risk discard preferences."""
+
+    name: str = "safe"
+
+    def choose_meld_indexes(
+        self, hand: list[Card], opening_required: bool
+    ) -> list[int] | None:
+        candidates = _eligible_natural_meld_candidates(hand, opening_required)
+        if not candidates:
+            return None
+
+        if not opening_required:
+            # Hold cards for flexibility once the opening requirement is already met.
+            return None
+
+        # Open with the lowest-value legal candidate that satisfies threshold.
+        return min(
+            candidates,
+            key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)),
+        )
+
+    def choose_discard_index(self, hand: list[Card]) -> int:
+        safe = [idx for idx, card in enumerate(hand) if can_discard(card)[0]]
+        if not safe:
+            raise RuleError("bot could not find a legal discard")
+
+        rank_counts: dict[str, int] = {}
+        for card in hand:
+            rank_counts[card.rank] = rank_counts.get(card.rank, 0) + 1
+
+        def discard_key(idx: int) -> tuple[int, int, int, int]:
+            card = hand[idx]
+            # Black threes are strong defensive discards because they freeze the pile.
+            freeze_bonus = 0 if card.is_black_three() else 1
+            singleton_bonus = 0 if rank_counts[card.rank] == 1 else 1
+            wild_penalty = 1 if card.is_wild() else 0
+            points = hand_score([card])
+            return (freeze_bonus, wild_penalty, singleton_bonus, points)
+
+        return min(safe, key=discard_key)
+
+
 def build_bot(kind: BotKind, seed: int | None = None) -> TurnBot:
     if kind == "random":
         return RandomBot(rng=random.Random(seed))
     if kind == "greedy":
         return GreedyBot()
+    if kind == "safe":
+        return SafeBot()
     raise ValueError(f"unknown bot kind: {kind}")
 
 
