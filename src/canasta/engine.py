@@ -21,6 +21,7 @@ from canasta.rules import (
     discard_pile_is_frozen,
     opening_meld_value,
     red_three_score,
+    split_meld_cards,
 )
 from canasta.scoring import calculate_round_score, calculate_total_score
 from canasta.turns import (
@@ -145,10 +146,8 @@ class CanastaEngine:
             raise RuleError("select cards for meld")
 
         cards = pop_cards_from_hand(player.hand, hand_indexes)
-        from canasta.rules import validate_meld_cards
-
-        ok, reason = validate_meld_cards(cards)
-        if not ok:
+        meld_groups, reason = split_meld_cards(cards, allow_multi_rank=not player.melds)
+        if meld_groups is None:
             player.hand.extend(cards)
             sort_hand(player.hand)
             raise RuleError(reason)
@@ -163,8 +162,10 @@ class CanastaEngine:
                     f"(naturals only); this scores {value}"
                 )
 
-        player.melds.append(Meld(cards=cards))
-        return ActionResult(message="created meld")
+        player.melds.extend(Meld(cards=group) for group in meld_groups)
+        if len(meld_groups) == 1:
+            return ActionResult(message="created meld")
+        return ActionResult(message=f"created {len(meld_groups)} melds")
 
     def add_to_meld(self, meld_index: int, hand_indexes: list[int]) -> ActionResult:
         ensure_round_active(self.state)

@@ -11,13 +11,15 @@ from canasta.bot_strategies import TurnBot
 from canasta.bots import BotKind, build_bot, play_bot_turn
 from canasta.card_assets import asset_dir, back_image_path, card_image_path
 from canasta.engine import CanastaEngine
-from canasta.model import Card, PlayerId, RuleError
+from canasta.model import Card, Meld, PlayerId, RuleError
 from canasta.rules import discard_pile_is_frozen
 
 # Card widget dimensions — proportional to the natural 537×750 px source images,
 # matching the ratio used in patience/ui/cards.py.
 CARD_W = 90
 CARD_H = 126
+CARD_PEEK = 28  # pixels of left edge visible per card in the fan layout
+CARD_LIFT = 12  # pixels a selected card is raised above the row
 
 _BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner"]
 
@@ -36,6 +38,11 @@ _TABLE_CSS = b"""
     }
 }
 .section-label { font-weight: bold; }
+.hand-card {
+    padding: 2px;
+    min-width: 0;
+    min-height: 0;
+}
 """
 
 
@@ -49,8 +56,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--north",
         choices=_BOT_CHOICES,
-        default="human",
-        help="Controller for the north seat (default: human)",
+        default="random",
+        help="Controller for the north seat (default: random)",
     )
     parser.add_argument(
         "--south",
@@ -119,6 +126,27 @@ def _format_card(card: Card) -> str:
     return f"{card.rank}{card.suit}"
 
 
+def _resolve_target_meld_index(melds: list[Meld], cards: list[Card]) -> int | None:
+    if not cards:
+        raise RuleError("select cards to add")
+    if any(card.is_wild() for card in cards):
+        return None
+
+    natural_ranks = {card.rank for card in cards}
+    if len(natural_ranks) != 1:
+        raise RuleError("selected cards must all match one meld rank")
+
+    target_rank = natural_ranks.pop()
+    matching_indexes = [
+        idx for idx, meld in enumerate(melds) if meld.natural_rank == target_rank
+    ]
+    if not matching_indexes:
+        raise RuleError(f"no existing meld for rank {target_rank}")
+    if len(matching_indexes) > 1:
+        raise RuleError(f"multiple melds found for rank {target_rank}")
+    return matching_indexes[0]
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
@@ -185,6 +213,9 @@ def main(argv: list[str] | None = None) -> int:
             self.add_css_class("table-window")
 
             self.engine = CanastaEngine()
+            self._north = args.north
+            self._south = args.south
+            self._bot_seed = args.bot_seed
             self.controllers = _build_controllers(args)
             self.selected_hand_indexes: set[int] = set()
             self.assets_root = (
@@ -246,23 +277,24 @@ def main(argv: list[str] | None = None) -> int:
             self.next_round_button.connect("clicked", self._on_next_round)
             controls.append(self.next_round_button)
 
-            self.meld_selector = Gtk.ComboBoxText()
+            self.meld_model = Gtk.StringList.new([])
+            self.meld_selector = Gtk.DropDown.new(self.meld_model, None)
             controls.append(self.meld_selector)
+
+            new_game_button = Gtk.Button(label="New Game\u2026")
+            new_game_button.connect("clicked", self._show_new_game_dialog)
+            controls.append(new_game_button)
 
             hand_title = Gtk.Label(label="Current hand", xalign=0)
             root.append(hand_title)
 
             hand_scroll = Gtk.ScrolledWindow()
             hand_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
-            hand_scroll.set_min_content_height(180)
+            hand_scroll.set_min_content_height(CARD_H + CARD_LIFT + 8)
             root.append(hand_scroll)
 
-            self.hand_flow = Gtk.FlowBox()
-            self.hand_flow.set_selection_mode(Gtk.SelectionMode.NONE)
-            self.hand_flow.set_max_children_per_line(8)
-            self.hand_flow.set_row_spacing(8)
-            self.hand_flow.set_column_spacing(8)
-            hand_scroll.set_child(self.hand_flow)
+            self.hand_fixed = Gtk.Fixed()
+            hand_scroll.set_child(self.hand_fixed)
 
             melds_title = Gtk.Label(label="Melds", xalign=0)
             root.append(melds_title)
@@ -274,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
             self.melds_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
             melds_scroll.set_child(self.melds_box)
 
-            self._set_status(self._initial_status_message(args))
+            self._set_status(self._initial_status_message())
             self._refresh()
 
         def _maybe_play_bot_turn(self) -> None:
@@ -299,13 +331,95 @@ def main(argv: list[str] | None = None) -> int:
             # Chain: if the next player is also a bot, auto-play them too.
             self._maybe_play_bot_turn()
 
-        def _initial_status_message(self, args: argparse.Namespace) -> str:
+        def _reset_game(self, north: str, south: str, bot_seed: int) -> None:
+            self._north = north
+            self._south = south
+            self._bot_seed = bot_seed
+            self.controllers = {
+                PlayerId.NORTH: (
+                    build_bot(north, seed=bot_seed + 1) if north != "human" else None
+                ),
+                PlayerId.SOUTH: (
+                    build_bot(south, seed=bot_seed + 2) if south != "human" else None
+                ),
+            }
+            self.engine = CanastaEngine()
+            self.selected_hand_indexes.clear()
+            self._set_status(self._initial_status_message())
+            self._refresh()
+            self._maybe_play_bot_turn()
+
+        def _show_new_game_dialog(self, _button: Gtk.Button) -> None:
+            dialog = Gtk.Window()
+            dialog.set_title("New Game")
+            dialog.set_transient_for(self)
+            dialog.set_modal(True)
+            dialog.set_resizable(False)
+
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+            box.set_margin_top(16)
+            box.set_margin_bottom(16)
+            box.set_margin_start(16)
+            box.set_margin_end(16)
+            dialog.set_child(box)
+
+            north_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            north_lbl = Gtk.Label(label="North seat:", xalign=0)
+            north_lbl.set_hexpand(True)
+            north_row.append(north_lbl)
+            north_model = Gtk.StringList.new(_BOT_CHOICES)
+            north_dd = Gtk.DropDown.new(north_model, None)
+            north_dd.set_selected(_BOT_CHOICES.index(self._north))
+            north_row.append(north_dd)
+            box.append(north_row)
+
+            south_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            south_lbl = Gtk.Label(label="South seat:", xalign=0)
+            south_lbl.set_hexpand(True)
+            south_row.append(south_lbl)
+            south_model = Gtk.StringList.new(_BOT_CHOICES)
+            south_dd = Gtk.DropDown.new(south_model, None)
+            south_dd.set_selected(_BOT_CHOICES.index(self._south))
+            south_row.append(south_dd)
+            box.append(south_row)
+
+            seed_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            seed_lbl = Gtk.Label(label="Bot seed:", xalign=0)
+            seed_lbl.set_hexpand(True)
+            seed_row.append(seed_lbl)
+            adj = Gtk.Adjustment.new(self._bot_seed, 0, 9999, 1, 10, 0)
+            seed_spin = Gtk.SpinButton.new(adj, 1, 0)
+            seed_row.append(seed_spin)
+            box.append(seed_row)
+
+            btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            btn_row.set_halign(Gtk.Align.END)
+            cancel_btn = Gtk.Button(label="Cancel")
+            cancel_btn.connect("clicked", lambda _: dialog.close())
+            btn_row.append(cancel_btn)
+            start_btn = Gtk.Button(label="Start")
+            start_btn.add_css_class("suggested-action")
+
+            def _on_start(_btn: Gtk.Button) -> None:
+                north = _BOT_CHOICES[north_dd.get_selected()]
+                south = _BOT_CHOICES[south_dd.get_selected()]
+                seed = int(seed_spin.get_value())
+                dialog.close()
+                self._reset_game(north, south, seed)
+
+            start_btn.connect("clicked", _on_start)
+            btn_row.append(start_btn)
+            box.append(btn_row)
+
+            dialog.present()
+
+        def _initial_status_message(self) -> str:
             if not self.assets_root.exists():
                 return (
                     f"Card images not found at {self.assets_root}. "
                     "Using text fallback. Symlink ~/.local/share/canasta to your card images."
                 )
-            controllers_desc = f"north={args.north}  south={args.south}"
+            controllers_desc = f"north={self._north}  south={self._south}"
             return f"Assets: {self.assets_root}  |  {controllers_desc}"
 
         def _clear_box(self, box: Gtk.Widget) -> None:
@@ -385,20 +499,27 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         def _refresh_hand(self) -> None:
-            self._clear_box(self.hand_flow)
+            self._clear_box(self.hand_fixed)
             current = self.engine.state.players[self.engine.state.current_player]
-            for idx, card in enumerate(current.hand):
+            hand = current.hand
+            n = len(hand)
+            total_w = max(CARD_W, (n - 1) * CARD_PEEK + CARD_W) if n else CARD_W
+            self.hand_fixed.set_size_request(total_w, CARD_H + CARD_LIFT + 8)
+            for idx, card in enumerate(hand):
                 button = Gtk.ToggleButton()
+                button.add_css_class("hand-card")
                 button.set_active(idx in self.selected_hand_indexes)
-                button.set_child(
-                    self._render_card_widget(card, f"{idx}: {_format_card(card)}")
-                )
+                button.set_child(_build_card_widget(card, self.assets_root))
                 button.connect("toggled", self._on_hand_toggled, idx)
-                self.hand_flow.insert(button, -1)
+                x = idx * CARD_PEEK
+                y = 0 if idx in self.selected_hand_indexes else CARD_LIFT
+                self.hand_fixed.put(button, x, y)
 
         def _refresh_melds(self) -> None:
             self._clear_box(self.melds_box)
-            self.meld_selector.remove_all()
+            n_items = self.meld_model.get_n_items()
+            if n_items > 0:
+                self.meld_model.splice(0, n_items, [])
             for player_id in (PlayerId.NORTH, PlayerId.SOUTH):
                 player = self.engine.state.players[player_id]
                 section = Gtk.Frame(label=f"{player_id.value.title()} melds")
@@ -423,7 +544,7 @@ def main(argv: list[str] | None = None) -> int:
                     inner.append(Gtk.Label(label="(none)", xalign=0))
                 for idx, meld in enumerate(player.melds):
                     if player_id == self.engine.state.current_player:
-                        self.meld_selector.append(str(idx), f"Meld {idx}")
+                        self.meld_model.append(f"Meld {idx}")
                     meld_row = Gtk.Box(
                         orientation=Gtk.Orientation.HORIZONTAL, spacing=6
                     )
@@ -436,14 +557,21 @@ def main(argv: list[str] | None = None) -> int:
 
                 section.set_child(inner)
                 self.melds_box.append(section)
-            if self.meld_selector.get_active_id() is None:
-                self.meld_selector.set_active(0)
+            if (
+                self.meld_model.get_n_items() > 0
+                and self.meld_selector.get_selected() >= self.meld_model.get_n_items()
+            ):
+                self.meld_selector.set_selected(0)
 
         def _refresh_controls(self) -> None:
             state = self.engine.state
             selected = self._selected_indexes()
             current = state.players[state.current_player]
             has_current_melds = bool(current.melds)
+            selected_cards = [
+                current.hand[idx] for idx in selected if idx < len(current.hand)
+            ]
+            needs_meld_selector = any(card.is_wild() for card in selected_cards)
             self.draw_button.set_sensitive(
                 state.winner is None and not state.turn_drawn
             )
@@ -463,7 +591,7 @@ def main(argv: list[str] | None = None) -> int:
                 state.winner is None and state.turn_drawn and len(selected) == 1
             )
             self.next_round_button.set_sensitive(state.winner is not None)
-            self.meld_selector.set_sensitive(has_current_melds)
+            self.meld_selector.set_sensitive(has_current_melds and needs_meld_selector)
 
         def _refresh(self) -> None:
             self._refresh_summary()
@@ -501,12 +629,24 @@ def main(argv: list[str] | None = None) -> int:
             self._run_action(lambda: self.engine.create_meld(indexes))
 
         def _on_add_to_meld(self, _button: Gtk.Button) -> None:
-            meld_id = self.meld_selector.get_active_id()
-            if meld_id is None:
-                self._set_status("error: select a meld first")
-                return
             indexes = self._selected_indexes()
-            self._run_action(lambda: self.engine.add_to_meld(int(meld_id), indexes))
+            current = self.engine.state.players[self.engine.state.current_player]
+            cards = [current.hand[idx] for idx in indexes]
+            try:
+                meld_idx = _resolve_target_meld_index(current.melds, cards)
+            except RuleError as exc:
+                self._set_status(f"error: {exc}")
+                self._refresh_controls()
+                return
+
+            if meld_idx is None:
+                meld_idx = self.meld_selector.get_selected()
+                if meld_idx >= self.meld_model.get_n_items():
+                    self._set_status("error: select a meld first")
+                    self._refresh_controls()
+                    return
+
+            self._run_action(lambda: self.engine.add_to_meld(meld_idx, indexes))
 
         def _on_discard(self, _button: Gtk.Button) -> None:
             indexes = self._selected_indexes()

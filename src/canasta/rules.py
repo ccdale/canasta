@@ -69,6 +69,35 @@ def validate_meld_cards(cards: list[Card]) -> tuple[bool, str]:
     return True, "ok"
 
 
+def split_meld_cards(
+    cards: list[Card], *, allow_multi_rank: bool = False
+) -> tuple[list[list[Card]] | None, str]:
+    ok, reason = validate_meld_cards(cards)
+    if ok:
+        return [cards], "ok"
+
+    if not allow_multi_rank:
+        return None, reason
+
+    naturals = [card for card in cards if card.rank not in WILD_RANKS]
+    wilds = [card for card in cards if card.rank in WILD_RANKS]
+    if not naturals:
+        return None, "meld cannot be all wild cards"
+    if wilds:
+        return None, "split-rank melds cannot include wild cards in one action"
+
+    groups: dict[str, list[Card]] = {}
+    for card in cards:
+        groups.setdefault(card.rank, []).append(card)
+
+    if len(groups) < 2:
+        return None, reason
+    if any(len(group) < 3 for group in groups.values()):
+        return None, "each rank in a split meld must contain at least 3 cards"
+
+    return list(groups.values()), "ok"
+
+
 def can_add_cards_to_meld(meld: Meld, cards: list[Card]) -> tuple[bool, str]:
     candidate = meld.cards + cards
     return validate_meld_cards(candidate)

@@ -12,6 +12,7 @@ from canasta.rules import (
     is_discard_freeze_card,
     meld_score,
     opening_meld_value,
+    split_meld_cards,
     validate_meld_cards,
 )
 
@@ -52,6 +53,49 @@ class TestValidateMeldCards:
     def test_wilds_equal_naturals_allowed(self):
         ok, _ = validate_meld_cards([c("K", "S"), c("K", "H"), c("2", "D"), c("JOKER")])
         assert ok
+
+
+class TestSplitMeldCards:
+    def test_single_rank_returns_one_group(self):
+        groups, msg = split_meld_cards([c("K", "S"), c("K", "H"), c("K", "D")])
+
+        assert msg == "ok"
+        assert groups == [[c("K", "S"), c("K", "H"), c("K", "D")]]
+
+    def test_opening_split_across_natural_ranks(self):
+        groups, msg = split_meld_cards(
+            [
+                c("6", "S"),
+                c("6", "H"),
+                c("6", "D"),
+                c("6", "C"),
+                c("Q", "S"),
+                c("Q", "H"),
+                c("Q", "D"),
+            ],
+            allow_multi_rank=True,
+        )
+
+        assert msg == "ok"
+        assert groups is not None
+        assert len(groups) == 2
+        assert {group[0].rank for group in groups} == {"6", "Q"}
+
+    def test_opening_split_rejects_wild_cards(self):
+        groups, msg = split_meld_cards(
+            [
+                c("A", "S"),
+                c("A", "H"),
+                c("A", "D"),
+                c("K", "S"),
+                c("K", "H"),
+                c("2", "C"),
+            ],
+            allow_multi_rank=True,
+        )
+
+        assert groups is None
+        assert "wild" in msg
 
 
 class TestCanAddCardsToMeld:

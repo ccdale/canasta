@@ -58,6 +58,8 @@ HELP_COMMANDS = {
         "  Example: 'meld 0 1 2' creates a meld from cards at indexes 0, 1, 2.\n"
         "  Rules: ≥3 cards, ≥1 natural, all naturals same rank, wilds ≤ naturals.\n"
         "  First meld must score ≥50 points (naturals only).\n"
+        "  Opening melds may be split across multiple natural ranks if each rank\n"
+        "  forms its own valid meld in the same action.\n"
     ),
     "add": (
         "add meld_index i j …\n"

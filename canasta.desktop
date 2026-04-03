@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Canasta
+Comment=Play Canasta card game
+Path=/home/chris/src/canasta
+Exec=uv run canasta-gui
+Icon=/home/chris/.local/share/canasta/back.png
+Terminal=false
+Categories=Game;CardGame;
+StartupNotify=true

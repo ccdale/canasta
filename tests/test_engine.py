@@ -155,6 +155,47 @@ class TestCreateMeld:
             eng.create_meld(idxs)
         assert len(eng.current_hand()) == hand_before
 
+    def test_opening_meld_can_split_across_ranks(self):
+        eng = make_engine()
+        idxs = self._draw_and_inject(
+            eng,
+            [
+                Card("6", "S"),
+                Card("6", "H"),
+                Card("6", "D"),
+                Card("6", "C"),
+                Card("Q", "S"),
+                Card("Q", "H"),
+                Card("Q", "D"),
+            ],
+        )
+
+        result = eng.create_meld(idxs)
+
+        assert result.message == "created 2 melds"
+        melds = eng.state.players[PlayerId.NORTH].melds
+        assert len(melds) == 2
+        assert {meld.natural_rank for meld in melds} == {"6", "Q"}
+
+    def test_opening_split_with_wild_is_rejected(self):
+        eng = make_engine()
+        idxs = self._draw_and_inject(
+            eng,
+            [
+                Card("A", "S"),
+                Card("A", "H"),
+                Card("A", "D"),
+                Card("K", "S"),
+                Card("K", "H"),
+                Card("2", "C"),
+            ],
+        )
+
+        with pytest.raises(
+            RuleError, match="split-rank melds cannot include wild cards"
+        ):
+            eng.create_meld(idxs)
+
 
 class TestAddToMeld:
     def _setup_with_meld(self) -> tuple[CanastaEngine, int]:
