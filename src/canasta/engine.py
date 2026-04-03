@@ -14,8 +14,10 @@ from canasta.model import (
 )
 from canasta.rules import (
     OPENING_MELD_MINIMUM,
+    can_pickup_frozen_discard,
     can_add_cards_to_meld,
     can_discard,
+    discard_pile_is_frozen,
     meld_score,
     opening_meld_value,
     red_three_score,
@@ -86,6 +88,12 @@ class CanastaEngine:
         from canasta.rules import validate_meld_cards
 
         top_discard = self.state.discard[-1]
+        if discard_pile_is_frozen(self.state.discard):
+            ok, reason = can_pickup_frozen_discard(top_discard, cards)
+            if not ok:
+                player.hand.extend(cards)
+                raise RuleError(reason)
+
         meld_cards = cards + [top_discard]
         ok, reason = validate_meld_cards(meld_cards)
         if not ok:

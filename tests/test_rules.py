@@ -1,13 +1,14 @@
 """Tests for canasta.rules."""
 
-import pytest
-
 from canasta.model import Card, Meld
 from canasta.rules import (
     OPENING_MELD_MINIMUM,
+    can_pickup_frozen_discard,
     can_add_cards_to_meld,
     can_discard,
+    discard_pile_is_frozen,
     hand_score,
+    is_discard_freeze_card,
     meld_score,
     opening_meld_value,
     validate_meld_cards,
@@ -91,6 +92,53 @@ class TestCanDiscard:
     def test_wild_two_ok(self):
         ok, _ = can_discard(c("2", "S"))
         assert ok
+
+
+class TestDiscardPileFreeze:
+    def test_wild_card_is_freeze_card(self):
+        assert is_discard_freeze_card(c("2", "S"))
+        assert is_discard_freeze_card(c("JOKER"))
+
+    def test_black_three_is_freeze_card(self):
+        assert is_discard_freeze_card(c("3", "S"))
+        assert is_discard_freeze_card(c("3", "C"))
+
+    def test_regular_card_not_freeze_card(self):
+        assert not is_discard_freeze_card(c("A", "S"))
+
+    def test_discard_pile_is_frozen_when_contains_freeze_card(self):
+        discard = [c("9", "S"), c("3", "C"), c("A", "D")]
+        assert discard_pile_is_frozen(discard)
+
+    def test_discard_pile_not_frozen_without_freeze_card(self):
+        discard = [c("9", "S"), c("8", "C"), c("A", "D")]
+        assert not discard_pile_is_frozen(discard)
+
+
+class TestCanPickupFrozenDiscard:
+    def test_matching_natural_pair_allowed(self):
+        ok, _ = can_pickup_frozen_discard(c("A", "D"), [c("A", "S"), c("A", "H")])
+        assert ok
+
+    def test_wrong_pair_rejected(self):
+        ok, msg = can_pickup_frozen_discard(c("A", "D"), [c("K", "S"), c("K", "H")])
+        assert not ok
+        assert "matching" in msg
+
+    def test_wild_in_pair_rejected(self):
+        ok, msg = can_pickup_frozen_discard(c("A", "D"), [c("A", "S"), c("JOKER")])
+        assert not ok
+        assert "natural" in msg
+
+    def test_wrong_card_count_rejected(self):
+        ok, msg = can_pickup_frozen_discard(c("A", "D"), [c("A", "S")])
+        assert not ok
+        assert "exactly 2" in msg
+
+    def test_freeze_card_on_top_rejected(self):
+        ok, msg = can_pickup_frozen_discard(c("3", "S"), [c("3", "S"), c("3", "C")])
+        assert not ok
+        assert "black three" in msg
 
 
 class TestHandScore:

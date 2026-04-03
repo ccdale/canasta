@@ -31,6 +31,9 @@ class Card:
     def is_red_three(self) -> bool:
         return self.rank == "3" and self.suit in {"H", "D"}
 
+    def is_black_three(self) -> bool:
+        return self.rank == "3" and self.suit in {"S", "C"}
+
 
 @dataclass
 class Meld:

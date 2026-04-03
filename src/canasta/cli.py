@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from canasta.engine import CanastaEngine, RuleError
 from canasta.model import PlayerId, hand_labels
+from canasta.rules import discard_pile_is_frozen
 
 HELP_TEXT = (
     "Commands:\n"
@@ -38,7 +39,7 @@ def _render_state(engine: CanastaEngine) -> str:
 
     return (
         f"Current: {state.current_player.value}\n"
-        f"Stock: {len(state.stock)}  Discard top: {state.discard[-1].label()}\n"
+        f"Stock: {len(state.stock)}  Discard top: {state.discard[-1].label()}  Frozen: {discard_pile_is_frozen(state.discard)}\n"
         f"Your hand: {hand or '(empty)'}\n"
         f"Your melds:\n{meld_block}\n"
         f"Your red threes: {red_three_block}\n"

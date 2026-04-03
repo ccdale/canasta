@@ -135,6 +135,30 @@ The current implementation supports a simplified discard-pile pickup rule:
 
 Discard pile freeze / unfreeze is still not implemented, so there are no extra pickup restrictions beyond the checks above.
 
+### Discard pile freeze
+
+The pile is considered **frozen** if it contains any:
+
+- wild card (`2` or `JOKER`)
+- black three (`3♠` or `3♣`)
+
+This freeze state is derived from the current discard pile contents each time it is checked.
+
+### Frozen-pile pickup restriction
+
+When the pile is frozen, the simplified pickup rule becomes stricter:
+
+1. The top discard must be a **natural** card.
+2. The player must use **exactly two** hand cards.
+3. Those two hand cards must be **natural cards of the same rank** as the top discard.
+
+Examples:
+
+- Frozen pile with top `AD`: pickup allowed with `AS AH`
+- Frozen pile with top `AD`: pickup rejected with `AS JOKER`
+- Frozen pile with top `AD`: pickup rejected with `AS AH AC`
+- Frozen pile with top `3S`: pickup rejected
+
 ---
 
 ## Discard restrictions
@@ -189,7 +213,7 @@ The following standard Canasta rules are not yet encoded:
 | Red three auto-meld when drawn | ✓ Implemented |
 | Opening meld minimum (50 pts natural) | ✓ Implemented |
 | Picking up the discard pile | ✓ Implemented |
-| Discard pile freeze | Not implemented |
+| Discard pile freeze | ✓ Implemented |
 | Hand-card penalties at round end | Not implemented |
 | Multi-round scoring | Not implemented |
 

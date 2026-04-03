@@ -191,7 +191,9 @@ class TestPickupDiscard:
     def _set_discard(self, eng: CanastaEngine, cards: list[Card]) -> None:
         eng.state.discard = list(cards)
 
-    def _inject_hand(self, eng: CanastaEngine, cards: list[Card], start: int = 0) -> None:
+    def _inject_hand(
+        self, eng: CanastaEngine, cards: list[Card], start: int = 0
+    ) -> None:
         hand = eng.current_hand()
         for i, card in enumerate(cards):
             hand[start + i] = card
@@ -271,6 +273,39 @@ class TestPickupDiscard:
         eng = make_engine()
         eng.state.discard = []
         with pytest.raises(RuleError, match="empty"):
+            eng.pickup_discard([0, 1])
+
+    def test_frozen_pile_allows_matching_natural_pair(self):
+        eng = make_engine()
+        self._set_discard(eng, [Card("3", "C"), Card("A", "D")])
+        self._inject_hand(eng, [Card("A", "S"), Card("A", "H")])
+
+        result = eng.pickup_discard([0, 1])
+
+        assert "picked up" in result.message
+
+    def test_frozen_pile_rejects_non_matching_pair(self):
+        eng = make_engine()
+        self._set_discard(eng, [Card("3", "C"), Card("A", "D")])
+        self._inject_hand(eng, [Card("K", "S"), Card("K", "H")])
+
+        with pytest.raises(RuleError, match="matching the top discard"):
+            eng.pickup_discard([0, 1])
+
+    def test_frozen_pile_rejects_extra_cards(self):
+        eng = make_engine()
+        self._set_discard(eng, [Card("3", "C"), Card("A", "D")])
+        self._inject_hand(eng, [Card("A", "S"), Card("A", "H"), Card("A", "C")])
+
+        with pytest.raises(RuleError, match="exactly 2"):
+            eng.pickup_discard([0, 1, 2])
+
+    def test_frozen_pile_rejects_black_three_on_top(self):
+        eng = make_engine()
+        self._set_discard(eng, [Card("A", "D"), Card("3", "S")])
+        self._inject_hand(eng, [Card("3", "C"), Card("3", "S")])
+
+        with pytest.raises(RuleError, match="black three"):
             eng.pickup_discard([0, 1])
 
 

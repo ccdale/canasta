@@ -55,6 +55,8 @@ All functions are stateless: they take values and return `(bool, str)` tuples (s
 | `validate_meld_cards(cards)` | New meld validity: ≥3 cards, ≥1 natural, all naturals same rank, wilds ≤ naturals. |
 | `can_add_cards_to_meld(meld, cards)` | Delegates to `validate_meld_cards` on the combined card list. |
 | `can_discard(card)` | Rejects red threes (3♥ / 3♦). |
+| `discard_pile_is_frozen(discard)` | Returns whether any wild card or black three in the pile keeps it frozen. |
+| `can_pickup_frozen_discard(top_discard, cards)` | Enforces the stricter pickup rule for a frozen pile: exact natural pair matching a natural top discard. |
 | `opening_meld_value(cards)` | Sums points for natural cards only (wilds excluded) — used to enforce the opening meld threshold. |
 | `hand_score(cards)` | Sums point values for a list of cards. |
 | `meld_score(melds)` | Sums `hand_score` for all meld cards, adding +300 for each canasta (≥7 cards). |
@@ -90,6 +92,8 @@ discard()             # ends the turn
 
 `pickup_discard(hand_indexes)` takes the entire discard pile into the player's turn, but requires the top discard card to be used immediately in a newly created meld with the selected hand cards. The remainder of the pile goes into the player's hand.
 
+The discard pile's frozen state is derived from its contents rather than stored separately: if any wild card or black three exists anywhere in the pile, the pile is considered frozen. In that state, pickup is restricted to an exact natural pair matching a natural top discard.
+
 Every method raises `RuleError` (a `ValueError` subclass) for illegal moves, with a plain-English message suitable for display in the CLI.
 
 `ActionResult` is a small frozen dataclass carrying only a `message` string — it lets callers display feedback without inspecting internal state.
@@ -121,7 +125,7 @@ All `RuleError` exceptions are caught and printed as plain messages; the game co
 - ~~Red three auto-meld on draw~~ ✓ done
 - ~~Opening meld minimum point requirement~~ ✓ done
 - ~~Picking up the discard pile~~ ✓ done
-- Discard pile freeze / unfreeze
+- ~~Discard pile freeze / unfreeze~~ ✓ done
 - Hand-card penalties at round end
 - Multi-round / cumulative scoring
 - AI player

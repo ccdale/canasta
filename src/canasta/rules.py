@@ -23,6 +23,26 @@ CARD_POINTS = {
 OPENING_MELD_MINIMUM = 50
 
 
+def is_discard_freeze_card(card: Card) -> bool:
+    return card.is_wild() or card.is_black_three()
+
+
+def discard_pile_is_frozen(discard: list[Card]) -> bool:
+    return any(is_discard_freeze_card(card) for card in discard)
+
+
+def can_pickup_frozen_discard(top_discard: Card, cards: list[Card]) -> tuple[bool, str]:
+    if top_discard.is_wild() or top_discard.is_black_three():
+        return False, "cannot pick up a frozen pile with a wild card or black three on top"
+    if len(cards) != 2:
+        return False, "frozen discard pickup requires exactly 2 hand cards"
+    if any(card.is_wild() for card in cards):
+        return False, "frozen discard pickup requires natural matching cards"
+    if any(card.rank != top_discard.rank for card in cards):
+        return False, "frozen discard pickup requires a natural pair matching the top discard"
+    return True, "ok"
+
+
 def validate_meld_cards(cards: list[Card]) -> tuple[bool, str]:
     if len(cards) < 3:
         return False, "meld requires at least 3 cards"
