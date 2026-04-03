@@ -137,14 +137,41 @@ scratch and ending with a fully playable GTK4 GUI.
 - Added `platformdirs` as a runtime dependency
 - 10 new tests for `card_assets` — 154 tests total
 
+## 16:11 — v0.1.22 · GUI setup polish and opening-meld fixes
+
+- Added `canasta.desktop` for GNOME desktop launching
+  - Runs `uv run canasta-gui`
+  - Uses the card-back image as the desktop icon
+- Added a GUI `New Game…` dialog
+  - Choose north/south controllers without using command-line flags
+  - Configure bot seed from the GUI
+- Changed GUI defaults to start as:
+  - North: `random`
+  - South: `human`
+- Improved the hand interaction model
+  - Current hand uses a stacked/fanned layout to conserve horizontal space
+  - Hand cards no longer show text labels under each image
+- Improved meld targeting in the GUI
+  - Adding natural cards to an existing meld now auto-selects the destination meld by rank
+  - The meld selector is only needed when a wild card is selected
+- Fixed GTK deprecations by replacing `Gtk.ComboBoxText` usage with `Gtk.DropDown`
+- Corrected the opening-meld rule implementation
+  - First meld may now be split across multiple natural ranks in a single action
+    (for example, `6666QQQ`)
+  - Split-rank opening melds with wild cards remain rejected in one action because
+    wild assignment would be ambiguous
+- Updated CLI help text to document split-rank opening melds
+- Added GUI and rules/engine coverage for the new behavior
+- Test count increased to **164 passing**
+
 ---
 
 ## End-of-day state
 
 | Item | Value |
 |---|---|
-| Version | 0.1.21 |
-| Tests | 154 passing |
+| Version | 0.1.22 |
+| Tests | 164 passing |
 | Entrypoints | `canasta` (CLI REPL), `canasta-gui` (GTK4) |
 | Bot strategies | random, greedy, safe, aggro, planner |
 | Remote | https://github.com/ccdale/canasta.git (pushed) |

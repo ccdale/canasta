@@ -24,6 +24,22 @@ Launch the GTK4 GUI:
 uv run canasta-gui
 ```
 
+For a fuller game and GUI walkthrough, see [rules.md](./rules.md).
+
+## Screenshots
+
+Current GUI screenshots:
+
+- `docs/screenshots/main-window.png`
+- `docs/screenshots/fanned-hand.png`
+- `docs/screenshots/new-game-dialog.png`
+- `docs/screenshots/add-to-meld.png`
+
+![Main window](docs/screenshots/main-window.png)
+![Fanned hand](docs/screenshots/fanned-hand.png)
+![New game dialog](docs/screenshots/new-game-dialog.png)
+![Add to meld](docs/screenshots/add-to-meld.png)
+
 Card art is looked up in the XDG data directory for `canasta`.
 Symlink the included ccacards image set:
 
