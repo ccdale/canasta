@@ -3,15 +3,17 @@ from __future__ import annotations
 from canasta.engine import CanastaEngine, RuleError
 from canasta.model import PlayerId, hand_labels
 
-HELP_TEXT = """Commands:
-  help
-  state
-  draw
-  meld i j k          # Create new meld from hand indexes
-  add m i j           # Add hand indexes to meld m
-  discard i
-  quit
-"""
+HELP_TEXT = (
+    "Commands:\n"
+    "  help\n"
+    "  state\n"
+    "  draw\n"
+    "  pickup i j          # Take discard pile by melding the top discard with hand indexes\n"
+    "  meld i j k          # Create new meld from hand indexes\n"
+    "  add m i j           # Add hand indexes to meld m\n"
+    "  discard i\n"
+    "  quit\n"
+)
 
 
 def _render_state(engine: CanastaEngine) -> str:
@@ -69,6 +71,9 @@ def main() -> int:
                 print(_render_state(engine))
             elif cmd == "draw":
                 print(engine.draw_stock().message)
+            elif cmd == "pickup":
+                indexes = [int(x) for x in parts[1:]]
+                print(engine.pickup_discard(indexes).message)
             elif cmd == "meld":
                 indexes = [int(x) for x in parts[1:]]
                 print(engine.create_meld(indexes).message)

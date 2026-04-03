@@ -75,6 +75,46 @@ class CanastaEngine:
         )
         return ActionResult(message=f"drew 2 cards{suffix}")
 
+    def pickup_discard(self, hand_indexes: list[int]) -> ActionResult:
+        player = self.state.players[self.state.current_player]
+        if self.state.turn_drawn:
+            raise RuleError("you already drew this turn")
+        if not self.state.discard:
+            raise RuleError("discard pile is empty")
+
+        cards = self._pop_cards_from_hand(player.hand, hand_indexes)
+        from canasta.rules import validate_meld_cards
+
+        top_discard = self.state.discard[-1]
+        meld_cards = cards + [top_discard]
+        ok, reason = validate_meld_cards(meld_cards)
+        if not ok:
+            player.hand.extend(cards)
+            raise RuleError(f"cannot pick up discard pile: {reason}")
+
+        if not player.melds:
+            value = opening_meld_value(meld_cards)
+            if value < OPENING_MELD_MINIMUM:
+                player.hand.extend(cards)
+                raise RuleError(
+                    f"opening meld must score at least {OPENING_MELD_MINIMUM} points "
+                    f"(naturals only); this scores {value}"
+                )
+
+        pile = list(self.state.discard)
+        player.melds.append(Meld(cards=meld_cards))
+        self.state.discard.clear()
+        player.hand.extend(pile[:-1])
+        self.state.turn_drawn = True
+
+        auto = self._collect_red_threes(player)
+        suffix = (
+            f" ({auto} red three{'s' if auto != 1 else ''} auto-melded)" if auto else ""
+        )
+        return ActionResult(
+            message=f"picked up {len(pile)} discard pile card{'s' if len(pile) != 1 else ''} and created meld{suffix}"
+        )
+
     def create_meld(self, hand_indexes: list[int]) -> ActionResult:
         player = self.state.players[self.state.current_player]
         if not self.state.turn_drawn:

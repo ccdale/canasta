@@ -187,6 +187,93 @@ class TestDiscard:
             eng.discard(999)
 
 
+class TestPickupDiscard:
+    def _set_discard(self, eng: CanastaEngine, cards: list[Card]) -> None:
+        eng.state.discard = list(cards)
+
+    def _inject_hand(self, eng: CanastaEngine, cards: list[Card], start: int = 0) -> None:
+        hand = eng.current_hand()
+        for i, card in enumerate(cards):
+            hand[start + i] = card
+
+    def test_pickup_creates_meld_with_top_discard(self):
+        eng = make_engine()
+        self._set_discard(eng, [Card("9", "C"), Card("A", "D")])
+        self._inject_hand(eng, [Card("A", "S"), Card("A", "H")])
+
+        result = eng.pickup_discard([0, 1])
+
+        meld = eng.state.players[PlayerId.NORTH].melds[0]
+        assert "picked up" in result.message
+        assert [card.label() for card in meld.cards] == ["AS", "AH", "AD"]
+
+    def test_pickup_moves_rest_of_pile_to_hand(self):
+        eng = make_engine()
+        self._set_discard(eng, [Card("9", "C"), Card("8", "S"), Card("A", "D")])
+        self._inject_hand(eng, [Card("A", "S"), Card("A", "H")])
+
+        eng.pickup_discard([0, 1])
+
+        hand_labels = {card.label() for card in eng.current_hand()}
+        assert "9C" in hand_labels
+        assert "8S" in hand_labels
+        assert eng.state.discard == []
+
+    def test_pickup_sets_turn_drawn(self):
+        eng = make_engine()
+        self._set_discard(eng, [Card("A", "D")])
+        self._inject_hand(eng, [Card("A", "S"), Card("A", "H")])
+
+        eng.pickup_discard([0, 1])
+
+        assert eng.state.turn_drawn
+
+    def test_pickup_after_draw_raises(self):
+        eng = make_engine()
+        eng.draw_stock()
+        with pytest.raises(RuleError, match="already drew"):
+            eng.pickup_discard([0, 1])
+
+    def test_pickup_invalid_meld_rolls_back(self):
+        eng = make_engine()
+        self._set_discard(eng, [Card("A", "D")])
+        self._inject_hand(eng, [Card("K", "S"), Card("Q", "H")])
+        hand_before = len(eng.current_hand())
+        discard_before = [card.label() for card in eng.state.discard]
+
+        with pytest.raises(RuleError, match="cannot pick up discard pile"):
+            eng.pickup_discard([0, 1])
+
+        assert len(eng.current_hand()) == hand_before
+        assert [card.label() for card in eng.state.discard] == discard_before
+
+    def test_pickup_opening_threshold_applies(self):
+        eng = make_engine()
+        self._set_discard(eng, [Card("K", "D")])
+        self._inject_hand(eng, [Card("K", "S"), Card("K", "H")])
+
+        with pytest.raises(RuleError, match="opening meld"):
+            eng.pickup_discard([0, 1])
+
+    def test_pickup_after_opening_meld_ignores_threshold(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].melds.append(
+            Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])
+        )
+        self._set_discard(eng, [Card("7", "D")])
+        self._inject_hand(eng, [Card("7", "S"), Card("7", "H")])
+
+        result = eng.pickup_discard([0, 1])
+
+        assert "picked up" in result.message
+
+    def test_pickup_empty_discard_raises(self):
+        eng = make_engine()
+        eng.state.discard = []
+        with pytest.raises(RuleError, match="empty"):
+            eng.pickup_discard([0, 1])
+
+
 class TestScore:
     def test_no_meld_score_at_start(self):
         # No melds have been played yet; only red-three bonus may be present.

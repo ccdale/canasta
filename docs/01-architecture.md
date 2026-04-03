@@ -83,10 +83,12 @@ Point values (from `CARD_POINTS`):
 **Turn flow** (enforced by the engine):
 
 ```
-draw_stock()          # must happen first each turn
+draw_stock() or pickup_discard()   # exactly one draw action first each turn
   → (optionally) create_meld() / add_to_meld()   # any number of times
 discard()             # ends the turn
 ```
+
+`pickup_discard(hand_indexes)` takes the entire discard pile into the player's turn, but requires the top discard card to be used immediately in a newly created meld with the selected hand cards. The remainder of the pile goes into the player's hand.
 
 Every method raises `RuleError` (a `ValueError` subclass) for illegal moves, with a plain-English message suitable for display in the CLI.
 
@@ -118,7 +120,7 @@ All `RuleError` exceptions are caught and printed as plain messages; the game co
 
 - ~~Red three auto-meld on draw~~ ✓ done
 - ~~Opening meld minimum point requirement~~ ✓ done
-- Picking up the discard pile
+- ~~Picking up the discard pile~~ ✓ done
 - Discard pile freeze / unfreeze
 - Hand-card penalties at round end
 - Multi-round / cumulative scoring

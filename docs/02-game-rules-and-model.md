@@ -111,7 +111,9 @@ A canasta earns a **+300 bonus** on top of the face-value score of its cards.
 Each turn follows a strict sequence:
 
 ```
-1. draw_stock()           — draw 2 cards from the stock
+1. draw_stock() or pickup_discard(indexes)
+  - `draw_stock()` draws 2 cards from the stock
+  - `pickup_discard(indexes)` takes the discard pile by immediately melding the top discard with the selected hand cards
 2. (optional, repeatable)
    create_meld(indexes)   — lay down a new meld from hand cards
    add_to_meld(m, indexes)— add hand cards to an existing meld
@@ -120,6 +122,18 @@ Each turn follows a strict sequence:
 
 The engine rejects out-of-order actions with a `RuleError`.
 For example, calling `discard` before `draw_stock` raises `"draw before discarding"`.
+
+### Picking up the discard pile
+
+The current implementation supports a simplified discard-pile pickup rule:
+
+1. The pickup must be the turn's draw action.
+2. The top discard must be used immediately in a **new meld**.
+3. The selected hand cards plus the top discard must form a valid meld under the normal meld rules.
+4. If this is the player's opening meld, the usual `OPENING_MELD_MINIMUM` still applies.
+5. After the meld is created, the rest of the discard pile is added to the player's hand.
+
+Discard pile freeze / unfreeze is still not implemented, so there are no extra pickup restrictions beyond the checks above.
 
 ---
 
@@ -174,7 +188,7 @@ The following standard Canasta rules are not yet encoded:
 |------|--------|
 | Red three auto-meld when drawn | ✓ Implemented |
 | Opening meld minimum (50 pts natural) | ✓ Implemented |
-| Picking up the discard pile | Not implemented |
+| Picking up the discard pile | ✓ Implemented |
 | Discard pile freeze | Not implemented |
 | Hand-card penalties at round end | Not implemented |
 | Multi-round scoring | Not implemented |
