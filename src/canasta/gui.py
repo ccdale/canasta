@@ -248,10 +248,14 @@ def main(argv: list[str] | None = None) -> int:
             self.north_melds_hdr.add_css_class("section-label")
             root.append(self.north_melds_hdr)
             north_melds_scroll = Gtk.ScrolledWindow()
-            north_melds_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
+            north_melds_scroll.set_policy(
+                Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER
+            )
             north_melds_scroll.set_min_content_height(CARD_H + 24)
             root.append(north_melds_scroll)
-            self.north_melds_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            self.north_melds_box = Gtk.Box(
+                orientation=Gtk.Orientation.HORIZONTAL, spacing=10
+            )
             self.north_melds_box.set_margin_top(4)
             self.north_melds_box.set_margin_bottom(4)
             self.north_melds_box.set_margin_start(6)
@@ -345,10 +349,14 @@ def main(argv: list[str] | None = None) -> int:
             south_melds_hdr.set_margin_start(6)
             root.append(south_melds_hdr)
             south_melds_scroll = Gtk.ScrolledWindow()
-            south_melds_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
+            south_melds_scroll.set_policy(
+                Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER
+            )
             south_melds_scroll.set_min_content_height(CARD_H + 24)
             root.append(south_melds_scroll)
-            self.south_melds_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+            self.south_melds_box = Gtk.Box(
+                orientation=Gtk.Orientation.HORIZONTAL, spacing=10
+            )
             self.south_melds_box.set_margin_top(4)
             self.south_melds_box.set_margin_bottom(4)
             self.south_melds_box.set_margin_start(6)
@@ -549,9 +557,7 @@ def main(argv: list[str] | None = None) -> int:
             state = self.engine.state
 
             north = state.players[PlayerId.NORTH]
-            self.north_melds_hdr.set_text(
-                f"North  ({len(north.hand)} cards in hand)"
-            )
+            self.north_melds_hdr.set_text(f"North  ({len(north.hand)} cards in hand)")
 
             self.info_label.set_text(
                 "\n".join(
@@ -599,7 +605,9 @@ def main(argv: list[str] | None = None) -> int:
             self.discard_box.append(discard_title)
             if state.discard:
                 top_discard = state.discard[-1]
-                self.discard_box.append(_build_card_widget(top_discard, self.assets_root))
+                self.discard_box.append(
+                    _build_card_widget(top_discard, self.assets_root)
+                )
             else:
                 self.discard_box.append(Gtk.Label(label="(empty)"))
 

@@ -132,6 +132,7 @@ class CanastaEngine:
 
         auto = collect_red_threes(player, self.state.stock)
         sort_hand(player.hand)
+        check_winner(self.state)
         suffix = (
             f" ({auto} red three{'s' if auto != 1 else ''} auto-melded)" if auto else ""
         )
@@ -166,6 +167,7 @@ class CanastaEngine:
                 )
 
         player.melds.extend(Meld(cards=group) for group in meld_groups)
+        check_winner(self.state)
         if len(meld_groups) == 1:
             return ActionResult(message="created meld")
         return ActionResult(message=f"created {len(meld_groups)} melds")
@@ -187,6 +189,7 @@ class CanastaEngine:
             raise RuleError(reason)
 
         meld.cards.extend(cards)
+        check_winner(self.state)
         return ActionResult(message="added cards to meld")
 
     def discard(self, hand_index: int) -> ActionResult:

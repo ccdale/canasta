@@ -504,6 +504,44 @@ class TestScore:
 
 
 class TestWinner:
+    def test_create_meld_sets_winner_with_empty_hand_and_canasta(self):
+        eng = make_engine()
+        south = eng.state.players[PlayerId.SOUTH]
+        eng.state.current_player = PlayerId.SOUTH
+        eng.state.turn_drawn = True
+        south.hand = [
+            Card("K", "S"),
+            Card("K", "H"),
+            Card("K", "D"),
+            Card("K", "C"),
+            Card("K", "S"),
+            Card("K", "H"),
+            Card("K", "D"),
+        ]
+        eng.create_meld([0, 1, 2, 3, 4, 5, 6])
+        assert eng.state.winner == PlayerId.SOUTH
+
+    def test_add_to_meld_sets_winner_with_empty_hand_and_canasta(self):
+        eng = make_engine()
+        south = eng.state.players[PlayerId.SOUTH]
+        eng.state.current_player = PlayerId.SOUTH
+        eng.state.turn_drawn = True
+        south.melds = [
+            Meld(
+                cards=[
+                    Card("K", "S"),
+                    Card("K", "H"),
+                    Card("K", "D"),
+                    Card("K", "C"),
+                    Card("K", "S"),
+                    Card("K", "H"),
+                ]
+            )
+        ]
+        south.hand = [Card("K", "D")]
+        eng.add_to_meld(0, [0])
+        assert eng.state.winner == PlayerId.SOUTH
+
     def test_discard_sets_winner_with_empty_hand_and_canasta(self):
         eng = make_engine()
         north = eng.state.players[PlayerId.NORTH]
