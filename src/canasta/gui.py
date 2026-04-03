@@ -519,7 +519,7 @@ def main(argv: list[str] | None = None) -> int:
                         f"Selected: {self._selected_indexes() or '(none)'}  |  "
                         f"Frozen discard: {discard_pile_is_frozen(state.discard)}  |  "
                         f"Turn drawn: {state.turn_drawn}  |  "
-                        f"Hand: {len(current.hand)} cards",
+                        f"Hand: {len(state.players[self._viewer_player_id()].hand)} cards",
                     ]
                 )
             )
@@ -561,9 +561,16 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 self.discard_box.append(Gtk.Label(label="(empty)"))
 
+        def _viewer_player_id(self) -> PlayerId:
+            """Player whose hand is displayed: the human player, or SOUTH for bot-vs-bot."""
+            for pid in (PlayerId.SOUTH, PlayerId.NORTH):
+                if self.controllers.get(pid) is None:
+                    return pid
+            return PlayerId.SOUTH
+
         def _refresh_hand(self) -> None:
             self._clear_box(self.hand_fixed)
-            current = self.engine.state.players[self.engine.state.current_player]
+            current = self.engine.state.players[self._viewer_player_id()]
             hand = current.hand
             n = len(hand)
             total_w = max(CARD_W, (n - 1) * CARD_PEEK + CARD_W) if n else CARD_W
