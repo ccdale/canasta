@@ -154,8 +154,7 @@ def main(argv: list[str] | None = None) -> int:
 
         gi.require_version("Gdk", "4.0")
         gi.require_version("Gtk", "4.0")
-        gi.require_version("GdkPixbuf", "2.0")
-        from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
+        from gi.repository import Gdk, Gio, GLib, Gtk
     except ModuleNotFoundError:
         exit_code = _reexec_with_system_python(argv or sys.argv[1:])
         if exit_code is not None:
@@ -178,22 +177,14 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     def _build_card_picture(image_path: Path) -> Gtk.Widget:
-        # Pre-scale via GdkPixbuf so the widget's natural size is exactly
-        # CARD_W×CARD_H — Gtk.Picture expands to fill allocated space regardless
-        # of set_size_request, but Gtk.Image from a pixbuf reports pixbuf dimensions.
-        try:
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                str(image_path), CARD_W, CARD_H, False
-            )
-            img = Gtk.Image.new_from_pixbuf(pixbuf)
-        except Exception:
-            img = Gtk.Image()
-        img.set_size_request(CARD_W, CARD_H)
-        img.set_halign(Gtk.Align.START)
-        img.set_valign(Gtk.Align.START)
-        img.set_hexpand(False)
-        img.set_vexpand(False)
-        return img
+        picture = Gtk.Picture.new_for_filename(str(image_path))
+        picture.set_size_request(CARD_W, CARD_H)
+        picture.set_content_fit(Gtk.ContentFit.FILL)
+        picture.set_halign(Gtk.Align.START)
+        picture.set_valign(Gtk.Align.START)
+        picture.set_hexpand(False)
+        picture.set_vexpand(False)
+        return picture
 
     def _build_card_widget(card: Card, assets_root: Path) -> Gtk.Widget:
         path = card_image_path(card, assets_root)
@@ -271,9 +262,11 @@ def main(argv: list[str] | None = None) -> int:
             root.append(middle)
 
             self.stock_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            self.stock_box.set_valign(Gtk.Align.START)
             middle.append(self.stock_box)
 
             self.discard_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            self.discard_box.set_valign(Gtk.Align.START)
             middle.append(self.discard_box)
 
             middle.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
