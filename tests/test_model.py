@@ -5,10 +5,8 @@ import pytest
 from canasta.model import (
     RANKS,
     SUITS,
-    WILD_RANKS,
     Card,
     Meld,
-    PlayerId,
     build_double_deck,
 )
 
