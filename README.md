@@ -7,6 +7,7 @@ Standalone Canasta project built to teach game architecture incrementally.
 - Pure Python game model and rules.
 - Turn-based local two-player engine.
 - CLI adapter for interactive play.
+- GTK4 GUI adapter for local play.
 - Player hands auto-sort by rank/suit for stable command indexing.
 
 ## Quick Start
@@ -15,6 +16,27 @@ Standalone Canasta project built to teach game architecture incrementally.
 cd ~/src/canasta
 uv sync
 uv run canasta
+```
+
+Launch the GTK4 GUI:
+
+```bash
+uv run canasta-gui
+```
+
+Card art is looked up in the XDG data directory for `canasta`.
+Symlink the included ccacards image set:
+
+```bash
+ln -sfn /path/to/ccacards/data "$HOME/.local/share/canasta"
+```
+
+You can override the asset directory explicitly or choose seat controllers:
+
+```bash
+uv run canasta-gui --assets-dir /path/to/card-images
+uv run canasta-gui --north human --south greedy
+uv run canasta-gui --north aggro --south planner --bot-seed 7
 ```
 
 In the CLI, use `help` for a command list or `help <command>` for detailed help on a specific command:
@@ -52,4 +74,4 @@ uv run pytest -q
 2. Engine command handlers that mutate game state safely.
 3. CLI layer that delegates all logic to the engine.
 4. Configurable AI opponents (`random`, `greedy`, `safe`, `aggro`, `planner`) with deterministic seeds.
-5. Optional GUI adapter later.
+5. GTK4 GUI adapter backed by the same engine.

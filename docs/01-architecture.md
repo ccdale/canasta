@@ -15,16 +15,20 @@ rules.py           ← pure functions over data (no state)
 hands.py           ← hand manipulation utilities (sorting, card selection)
 scoring.py         ← round/cumulative scoring calculation
 turns.py           ← turn and round lifecycle management
+card_assets.py     ← card-art lookup and image-path mapping
 engine.py          ← stateful orchestration (uses all above)
 bot_strategies.py  ← bot strategy implementations (protocol + 5 bot types)
 bots.py            ← bot factory and turn orchestration
-cli.py             ← I/O and command parsing (uses engine + bots)
+cli.py             ← terminal I/O and command parsing (uses engine + bots)
+gui.py             ← GTK4 GUI presentation (uses engine + card_assets)
 ```
 
 Each module imports only from those listed above it, maintaining separation of concerns.
 `model` and `rules` are pure and testable in isolation.
 Helpers like `hands`, `scoring`, and `turns` keep `engine` focused on orchestration.
 `bot_strategies` contains pure strategy logic; `bots` provides the factory and orchestrator.
+
+`card_assets` isolates the external image-set mapping so the GTK layer can stay thin and testable.
 
 ---
 
