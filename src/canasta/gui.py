@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 from canasta.bot_strategies import TurnBot
-from canasta.bots import BotKind, build_bot, play_bot_turn
+from canasta.bots import build_bot, play_bot_turn
 from canasta.card_assets import asset_dir, back_image_path, card_image_path
 from canasta.engine import CanastaEngine
 from canasta.model import Card, Meld, PlayerId, RuleError
@@ -23,25 +23,25 @@ CARD_LIFT = 10  # pixels a selected card is raised above the row
 _BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner"]
 
 # Green-felt table CSS matching patience/ui/theme.py style.
-_TABLE_CSS = f"""
-@media (prefers-color-scheme: light) {{
-    .table-window {{
+_TABLE_CSS = """
+@media (prefers-color-scheme: light) {
+    .table-window {
         background-color: #dce6d7;
         background-image: linear-gradient(180deg, #edf3e9 0%, #dfe9d9 38%, #d3e0cd 100%);
-    }}
-}}
-@media (prefers-color-scheme: dark) {{
-    .table-window {{
+    }
+}
+@media (prefers-color-scheme: dark) {
+    .table-window {
         background-color: #132219;
         background-image: linear-gradient(180deg, #1b2d22 0%, #14251b 42%, #0e1b14 100%);
-    }}
-}}
-.section-label {{ font-weight: bold; }}
-.hand-card {{
+    }
+}
+.section-label { font-weight: bold; }
+.hand-card {
     padding: 2px;
     min-width: 0;
     min-height: 0;
-}}
+}
 """
 
 
@@ -681,7 +681,6 @@ def main(argv: list[str] | None = None) -> int:
         def _refresh_controls(self) -> None:
             state = self.engine.state
             selected = self._selected_indexes()
-            current = state.players[state.current_player]
             viewer = state.players[self._viewer_player_id()]
             is_human_turn = self.controllers.get(state.current_player) is None
             has_current_melds = bool(viewer.melds)
