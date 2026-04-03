@@ -155,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
 
         gi.require_version("Gdk", "4.0")
         gi.require_version("Gtk", "4.0")
-        from gi.repository import Gdk, Gio, Gtk
+        from gi.repository import Gdk, Gio, GLib, Gtk
     except ModuleNotFoundError:
         exit_code = _reexec_with_system_python(argv or sys.argv[1:])
         if exit_code is not None:
@@ -218,6 +218,11 @@ def main(argv: list[str] | None = None) -> int:
             self._bot_seed = args.bot_seed
             self.controllers = _build_controllers(args)
             self.selected_hand_indexes: set[int] = set()
+            self._bot_timeout_id: int | None = None
+            self._bot_indicator_timeout_id: int | None = None
+            self._bot_indicator_actor: PlayerId | None = None
+            self._bot_indicator_name: str = ""
+            self._bot_indicator_step = 0
             self.assets_root = (
                 Path(args.assets_dir).expanduser() if args.assets_dir else asset_dir()
             )
@@ -308,30 +313,85 @@ def main(argv: list[str] | None = None) -> int:
 
             self._set_status(self._initial_status_message())
             self._refresh()
+            self._maybe_play_bot_turn()
+
+        def _cancel_bot_timer(self) -> None:
+            if self._bot_timeout_id is not None:
+                GLib.source_remove(self._bot_timeout_id)
+                self._bot_timeout_id = None
+            self._stop_bot_indicator()
+
+        def _start_bot_indicator(self, actor: PlayerId, name: str) -> None:
+            self._stop_bot_indicator()
+            self._bot_indicator_actor = actor
+            self._bot_indicator_name = name
+            self._bot_indicator_step = 0
+            self._set_status(f"[{actor.value}:{name}] thinking")
+            self._bot_indicator_timeout_id = GLib.timeout_add(
+                250, self._tick_bot_indicator
+            )
+
+        def _stop_bot_indicator(self) -> None:
+            if self._bot_indicator_timeout_id is not None:
+                GLib.source_remove(self._bot_indicator_timeout_id)
+                self._bot_indicator_timeout_id = None
+            self._bot_indicator_actor = None
+            self._bot_indicator_name = ""
+            self._bot_indicator_step = 0
+
+        def _tick_bot_indicator(self) -> bool:
+            if self._bot_indicator_actor is None:
+                return False
+            suffix = "." * ((self._bot_indicator_step % 3) + 1)
+            self._set_status(
+                f"[{self._bot_indicator_actor.value}:{self._bot_indicator_name}] thinking{suffix}"
+            )
+            self._bot_indicator_step += 1
+            return True
 
         def _maybe_play_bot_turn(self) -> None:
             """If the current player is bot-controlled, auto-play their full turn."""
+            if self._bot_timeout_id is not None:
+                return
             state = self.engine.state
             if state.winner is not None:
                 return
             controller = self.controllers.get(state.current_player)
             if controller is None:
                 return
+            self._start_bot_indicator(state.current_player, controller.name)
+            self._refresh_controls()
+            self._bot_timeout_id = GLib.timeout_add(1000, self._play_one_bot_turn)
+
+        def _play_one_bot_turn(self) -> bool:
+            """Play one bot turn, then optionally schedule the next bot seat."""
+            self._bot_timeout_id = None
+            self._stop_bot_indicator()
+            state = self.engine.state
+            if state.winner is not None:
+                return False
+            controller = self.controllers.get(state.current_player)
+            if controller is None:
+                return False
             try:
+                actor = state.current_player
                 actions = play_bot_turn(self.engine, controller)
                 self._set_status(
-                    f"[{state.current_player.value}:{controller.name}] "
-                    + " | ".join(actions)
+                    f"[{actor.value}:{controller.name}] " + " | ".join(actions)
                 )
             except RuleError as exc:
                 self._set_status(
                     f"[{state.current_player.value}:{controller.name}] error: {exc}"
                 )
+                self._refresh()
+                return False
+
             self._refresh()
-            # Chain: if the next player is also a bot, auto-play them too.
             self._maybe_play_bot_turn()
+            return False
 
         def _reset_game(self, north: str, south: str, bot_seed: int) -> None:
+            self._cancel_bot_timer()
             self._north = north
             self._south = south
             self._bot_seed = bot_seed
@@ -567,31 +627,44 @@ def main(argv: list[str] | None = None) -> int:
             state = self.engine.state
             selected = self._selected_indexes()
             current = state.players[state.current_player]
+            is_human_turn = self.controllers.get(state.current_player) is None
             has_current_melds = bool(current.melds)
             selected_cards = [
                 current.hand[idx] for idx in selected if idx < len(current.hand)
             ]
             needs_meld_selector = any(card.is_wild() for card in selected_cards)
             self.draw_button.set_sensitive(
-                state.winner is None and not state.turn_drawn
+                state.winner is None and is_human_turn and not state.turn_drawn
             )
             self.pickup_button.set_sensitive(
-                state.winner is None and not state.turn_drawn and bool(selected)
+                state.winner is None
+                and is_human_turn
+                and not state.turn_drawn
+                and bool(selected)
             )
             self.meld_button.set_sensitive(
-                state.winner is None and state.turn_drawn and bool(selected)
+                state.winner is None
+                and is_human_turn
+                and state.turn_drawn
+                and bool(selected)
             )
             self.add_button.set_sensitive(
                 state.winner is None
+                and is_human_turn
                 and state.turn_drawn
                 and bool(selected)
                 and has_current_melds
             )
             self.discard_button.set_sensitive(
-                state.winner is None and state.turn_drawn and len(selected) == 1
+                state.winner is None
+                and is_human_turn
+                and state.turn_drawn
+                and len(selected) == 1
             )
             self.next_round_button.set_sensitive(state.winner is not None)
-            self.meld_selector.set_sensitive(has_current_melds and needs_meld_selector)
+            self.meld_selector.set_sensitive(
+                is_human_turn and has_current_melds and needs_meld_selector
+            )
 
         def _refresh(self) -> None:
             self._refresh_summary()
