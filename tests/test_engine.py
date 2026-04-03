@@ -400,6 +400,46 @@ class TestPickupDiscard:
         with pytest.raises(RuleError, match="black three"):
             eng.pickup_discard([0, 1])
 
+    def test_split_rank_pickup_creates_two_opening_melds(self):
+        # Tens (3×10=30) + queen discard with 2 queens (3×10=30) → combined 60 ≥ 50
+        eng = make_engine()
+        self._set_discard(eng, [Card("K", "C"), Card("Q", "D")])
+        self._inject_hand(
+            eng,
+            [
+                Card("T", "S"),
+                Card("T", "H"),
+                Card("T", "D"),
+                Card("Q", "S"),
+                Card("Q", "H"),
+            ],
+        )
+
+        result = eng.pickup_discard([0, 1, 2, 3, 4])
+
+        melds = eng.state.players[PlayerId.NORTH].melds
+        assert len(melds) == 2
+        assert {meld.natural_rank for meld in melds} == {"T", "Q"}
+        assert "2 melds" in result.message
+
+    def test_split_rank_pickup_fails_below_opening_minimum(self):
+        # 3 × 5 (five-pip) = 15, plus 3 × 5 = 15, total 30 < 50
+        eng = make_engine()
+        self._set_discard(eng, [Card("K", "C"), Card("5", "D")])
+        self._inject_hand(
+            eng,
+            [
+                Card("4", "S"),
+                Card("4", "H"),
+                Card("4", "D"),
+                Card("5", "S"),
+                Card("5", "H"),
+            ],
+        )
+
+        with pytest.raises(RuleError, match="opening meld must score"):
+            eng.pickup_discard([0, 1, 2, 3, 4])
+
 
 class TestScore:
     def test_no_meld_score_at_start(self):

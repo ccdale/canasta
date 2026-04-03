@@ -14,6 +14,7 @@ from canasta.rules import (
     opening_meld_value,
     split_meld_cards,
     validate_meld_cards,
+    validate_pickup_cards,
 )
 
 
@@ -252,3 +253,49 @@ class TestOpeningMeldValue:
         # 2 × A + K = 50
         cards = [c("A", "S"), c("A", "H"), c("K", "D")]
         assert opening_meld_value(cards) >= OPENING_MELD_MINIMUM
+
+
+class TestValidatePickupCards:
+    def test_single_rank_returns_one_group(self):
+        top = c("A", "D")
+        groups, msg = validate_pickup_cards(top, [c("A", "S"), c("A", "H")])
+
+        assert msg == "ok"
+        assert len(groups) == 1
+        assert {card.rank for card in groups[0]} == {"A"}
+
+    def test_split_rank_opening_returns_two_groups(self):
+        # 3 tens + top discard queen, with 2 more queens in hand
+        top = c("Q", "D")
+        hand = [c("T", "S"), c("T", "H"), c("T", "D"), c("Q", "S"), c("Q", "H")]
+        groups, msg = validate_pickup_cards(top, hand, allow_multi_rank=True)
+
+        assert msg == "ok"
+        assert len(groups) == 2
+        # First group must contain the top discard (queen group)
+        assert groups[0][0].rank == "Q"
+        assert {card.rank for card in groups[1]} == {"T"}
+
+    def test_split_rank_requires_allow_multi_rank(self):
+        top = c("Q", "D")
+        hand = [c("T", "S"), c("T", "H"), c("T", "D"), c("Q", "S"), c("Q", "H")]
+        groups, msg = validate_pickup_cards(top, hand, allow_multi_rank=False)
+
+        assert groups is None
+
+    def test_split_rank_rejects_wild_cards(self):
+        top = c("Q", "D")
+        hand = [c("Q", "S"), c("Q", "H"), c("T", "S"), c("T", "H"), c("2", "C")]
+        groups, msg = validate_pickup_cards(top, hand, allow_multi_rank=True)
+
+        assert groups is None
+        assert "wild" in msg
+
+    def test_split_rank_rejects_group_with_fewer_than_3(self):
+        # Only 2 tens available — tops up to 2+1=2 in group after discard added
+        top = c("Q", "D")
+        hand = [c("T", "S"), c("T", "H"), c("Q", "S"), c("Q", "H")]
+        groups, msg = validate_pickup_cards(top, hand, allow_multi_rank=True)
+
+        assert groups is None
+        assert "at least 3" in msg

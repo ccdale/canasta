@@ -22,6 +22,7 @@ from canasta.rules import (
     opening_meld_value,
     red_three_score,
     split_meld_cards,
+    validate_pickup_cards,
 )
 from canasta.scoring import calculate_round_score, calculate_total_score
 from canasta.turns import (
@@ -95,7 +96,6 @@ class CanastaEngine:
             raise RuleError("discard pile is empty")
 
         cards = pop_cards_from_hand(player.hand, hand_indexes)
-        from canasta.rules import validate_meld_cards
 
         top_discard = self.state.discard[-1]
         if discard_pile_is_frozen(self.state.discard):
@@ -105,15 +105,17 @@ class CanastaEngine:
                 sort_hand(player.hand)
                 raise RuleError(reason)
 
-        meld_cards = cards + [top_discard]
-        ok, reason = validate_meld_cards(meld_cards)
-        if not ok:
+        is_opening = not player.melds
+        meld_groups, reason = validate_pickup_cards(
+            top_discard, cards, allow_multi_rank=is_opening
+        )
+        if meld_groups is None:
             player.hand.extend(cards)
             sort_hand(player.hand)
             raise RuleError(f"cannot pick up discard pile: {reason}")
 
-        if not player.melds:
-            value = opening_meld_value(meld_cards)
+        if is_opening:
+            value = sum(opening_meld_value(group) for group in meld_groups)
             if value < OPENING_MELD_MINIMUM:
                 player.hand.extend(cards)
                 sort_hand(player.hand)
@@ -123,7 +125,7 @@ class CanastaEngine:
                 )
 
         pile = list(self.state.discard)
-        player.melds.append(Meld(cards=meld_cards))
+        player.melds.extend(Meld(cards=group) for group in meld_groups)
         self.state.discard.clear()
         player.hand.extend(pile[:-1])
         self.state.turn_drawn = True
@@ -133,8 +135,9 @@ class CanastaEngine:
         suffix = (
             f" ({auto} red three{'s' if auto != 1 else ''} auto-melded)" if auto else ""
         )
+        meld_word = f"{len(meld_groups)} melds" if len(meld_groups) > 1 else "meld"
         return ActionResult(
-            message=f"picked up {len(pile)} discard pile card{'s' if len(pile) != 1 else ''} and created meld{suffix}"
+            message=f"picked up {len(pile)} discard pile card{'s' if len(pile) != 1 else ''} and created {meld_word}{suffix}"
         )
 
     def create_meld(self, hand_indexes: list[int]) -> ActionResult:

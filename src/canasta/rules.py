@@ -103,6 +103,55 @@ def can_add_cards_to_meld(meld: Meld, cards: list[Card]) -> tuple[bool, str]:
     return validate_meld_cards(candidate)
 
 
+def validate_pickup_cards(
+    top_discard: Card,
+    hand_cards: list[Card],
+    *,
+    allow_multi_rank: bool = False,
+) -> tuple[list[list[Card]] | None, str]:
+    """Validate hand cards + top discard for a pickup action.
+
+    Returns a list of meld card groups (the group containing top_discard is
+    first) or (None, reason) on failure.  When allow_multi_rank is True (used
+    for the opening meld), selected hand cards may span multiple natural ranks
+    provided each rank forms its own valid meld of ≥3 cards — no wild cards
+    are permitted in a split pickup.
+    """
+    all_cards = hand_cards + [top_discard]
+
+    # Always try single-rank first (existing behaviour, also covers wild melds).
+    ok, reason = validate_meld_cards(all_cards)
+    if ok:
+        return [all_cards], "ok"
+
+    if not allow_multi_rank:
+        return None, reason
+
+    # Multi-rank split: wild cards cannot be distributed unambiguously.
+    if any(card.is_wild() for card in all_cards):
+        return None, "split-rank pickup melds cannot include wild cards"
+
+    groups: dict[str, list[Card]] = {}
+    for card in all_cards:
+        groups.setdefault(card.rank, []).append(card)
+
+    if len(groups) < 2:
+        return None, reason  # single rank but still failed above
+
+    for rank, group in groups.items():
+        if len(group) < 3:
+            return None, (
+                f"each rank in a split pickup must have at least 3 cards "
+                f"(rank {rank} has {len(group)})"
+            )
+
+    discard_rank = top_discard.rank
+    result = [groups[discard_rank]] + [
+        g for r, g in groups.items() if r != discard_rank
+    ]
+    return result, "ok"
+
+
 def can_discard(card: Card) -> tuple[bool, str]:
     if card.rank == "3" and card.suit in {"H", "D"}:
         return False, "red threes cannot be discarded"
