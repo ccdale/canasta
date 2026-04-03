@@ -13,7 +13,7 @@ from canasta.rules import (
     opening_meld_value,
 )
 
-BotKind = Literal["random", "greedy", "safe"]
+BotKind = Literal["random", "greedy", "safe", "aggro", "planner"]
 
 
 class TurnBot(Protocol):
@@ -113,6 +113,71 @@ class SafeBot:
         return min(safe, key=discard_key)
 
 
+@dataclass
+class AggroBot:
+    """Aggressive bot: meld as much as possible, discard highest-risk points last."""
+
+    name: str = "aggro"
+
+    def choose_meld_indexes(
+        self, hand: list[Card], opening_required: bool
+    ) -> list[int] | None:
+        candidates = _eligible_natural_meld_candidates(hand, opening_required)
+        if not candidates:
+            return None
+        return max(
+            candidates,
+            key=lambda idxs: (len(idxs), hand_score([hand[i] for i in idxs])),
+        )
+
+    def choose_discard_index(self, hand: list[Card]) -> int:
+        safe = [idx for idx, card in enumerate(hand) if can_discard(card)[0]]
+        if not safe:
+            raise RuleError("bot could not find a legal discard")
+        # Dump highest points first; prefer non-wild when tied.
+        return max(safe, key=lambda idx: (hand_score([hand[idx]]), hand[idx].is_wild()))
+
+
+@dataclass
+class PlannerBot:
+    """Balanced bot: meld strong candidates, keep synergy, discard with medium risk."""
+
+    name: str = "planner"
+
+    def choose_meld_indexes(
+        self, hand: list[Card], opening_required: bool
+    ) -> list[int] | None:
+        candidates = _eligible_natural_meld_candidates(hand, opening_required)
+        if not candidates:
+            return None
+
+        def meld_key(idxs: list[int]) -> tuple[int, int, int]:
+            cards = [hand[i] for i in idxs]
+            return (hand_score(cards), len(idxs), _natural_density(cards))
+
+        return max(candidates, key=meld_key)
+
+    def choose_discard_index(self, hand: list[Card]) -> int:
+        safe = [idx for idx, card in enumerate(hand) if can_discard(card)[0]]
+        if not safe:
+            raise RuleError("bot could not find a legal discard")
+
+        rank_counts: dict[str, int] = {}
+        for card in hand:
+            rank_counts[card.rank] = rank_counts.get(card.rank, 0) + 1
+
+        def discard_key(idx: int) -> tuple[int, int, int, int]:
+            card = hand[idx]
+            # Keep wilds and keep pairs/triples for future melds when possible.
+            wild_penalty = 1 if card.is_wild() else 0
+            grouped_penalty = 1 if rank_counts[card.rank] > 1 else 0
+            freeze_bonus = 0 if card.is_black_three() else 1
+            points = hand_score([card])
+            return (wild_penalty, grouped_penalty, freeze_bonus, points)
+
+        return min(safe, key=discard_key)
+
+
 def build_bot(kind: BotKind, seed: int | None = None) -> TurnBot:
     if kind == "random":
         return RandomBot(rng=random.Random(seed))
@@ -120,6 +185,10 @@ def build_bot(kind: BotKind, seed: int | None = None) -> TurnBot:
         return GreedyBot()
     if kind == "safe":
         return SafeBot()
+    if kind == "aggro":
+        return AggroBot()
+    if kind == "planner":
+        return PlannerBot()
     raise ValueError(f"unknown bot kind: {kind}")
 
 
@@ -165,3 +234,7 @@ def _eligible_natural_meld_candidates(
                     continue
             candidates.append(candidate)
     return candidates
+
+
+def _natural_density(cards: list[Card]) -> int:
+    return sum(1 for card in cards if not card.is_wild())

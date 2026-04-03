@@ -1,6 +1,14 @@
 """Tests for canasta.bots."""
 
-from canasta.bots import GreedyBot, RandomBot, SafeBot, build_bot, play_bot_turn
+from canasta.bots import (
+    AggroBot,
+    GreedyBot,
+    PlannerBot,
+    RandomBot,
+    SafeBot,
+    build_bot,
+    play_bot_turn,
+)
 from canasta.engine import CanastaEngine
 from canasta.model import Card, PlayerId
 
@@ -21,6 +29,14 @@ class TestBuildBot:
     def test_build_safe(self):
         bot = build_bot("safe")
         assert bot.name == "safe"
+
+    def test_build_aggro(self):
+        bot = build_bot("aggro")
+        assert bot.name == "aggro"
+
+    def test_build_planner(self):
+        bot = build_bot("planner")
+        assert bot.name == "planner"
 
 
 class TestBotTurns:
@@ -88,3 +104,45 @@ class TestSafeBot:
         hand = [Card("4", "S"), Card("4", "H"), Card("5", "C")]
         idx = SafeBot().choose_discard_index(hand)
         assert hand[idx].label() == "5C"
+
+
+class TestAggroBot:
+    def test_aggro_bot_prefers_longer_meld(self):
+        hand = [
+            Card("A", "S"),
+            Card("A", "H"),
+            Card("A", "D"),
+            Card("A", "C"),
+            Card("A", "S"),
+        ]
+        idxs = AggroBot().choose_meld_indexes(hand, opening_required=True)
+        assert idxs is not None
+        assert len(idxs) == 5
+
+    def test_aggro_discard_prefers_high_points(self):
+        hand = [Card("A", "S"), Card("7", "H"), Card("K", "D")]
+        idx = AggroBot().choose_discard_index(hand)
+        assert hand[idx].label() == "AS"
+
+
+class TestPlannerBot:
+    def test_planner_prefers_high_value_meld(self):
+        hand = [
+            Card("A", "S"),
+            Card("A", "H"),
+            Card("A", "D"),
+            Card("K", "S"),
+            Card("K", "H"),
+            Card("K", "D"),
+            Card("K", "C"),
+            Card("K", "S"),
+        ]
+        idxs = PlannerBot().choose_meld_indexes(hand, opening_required=True)
+        assert idxs is not None
+        ranks = [hand[i].rank for i in idxs]
+        assert all(rank == "A" for rank in ranks)
+
+    def test_planner_discard_keeps_wild_when_possible(self):
+        hand = [Card("2", "S"), Card("7", "H"), Card("8", "D")]
+        idx = PlannerBot().choose_discard_index(hand)
+        assert hand[idx].rank != "2"

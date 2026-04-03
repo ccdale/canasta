@@ -59,10 +59,14 @@ def _render_state(engine: CanastaEngine) -> str:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Canasta CLI")
     parser.add_argument(
-        "--north", choices=["human", "random", "greedy", "safe"], default="human"
+        "--north",
+        choices=["human", "random", "greedy", "safe", "aggro", "planner"],
+        default="human",
     )
     parser.add_argument(
-        "--south", choices=["human", "random", "greedy", "safe"], default="human"
+        "--south",
+        choices=["human", "random", "greedy", "safe", "aggro", "planner"],
+        default="human",
     )
     parser.add_argument("--bot-seed", type=int, default=0)
     return parser.parse_args(argv)
