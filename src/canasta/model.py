@@ -10,6 +10,12 @@ WILD_RANKS = {"2", "JOKER"}
 DRAW_COUNT_PER_TURN = 2
 
 
+class RuleError(ValueError):
+    """Raised when a game rule is violated."""
+
+    pass
+
+
 class PlayerId(str, Enum):
     NORTH = "north"
     SOUTH = "south"

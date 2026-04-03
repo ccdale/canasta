@@ -4,8 +4,8 @@ import random
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-from canasta.engine import CanastaEngine, RuleError
-from canasta.model import Card
+from canasta.engine import CanastaEngine
+from canasta.model import Card, RuleError
 from canasta.rules import (
     OPENING_MELD_MINIMUM,
     can_discard,

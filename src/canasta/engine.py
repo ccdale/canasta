@@ -3,16 +3,15 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
+from canasta.hands import pop_cards_from_hand, sort_hand
 from canasta.model import (
     DRAW_COUNT_PER_TURN,
-    RANKS,
-    SUITS,
     Card,
     GameState,
     Meld,
     PlayerId,
     PlayerState,
-    build_double_deck,
+    RuleError,
 )
 from canasta.rules import (
     OPENING_MELD_MINIMUM,
@@ -20,15 +19,17 @@ from canasta.rules import (
     can_discard,
     can_pickup_frozen_discard,
     discard_pile_is_frozen,
-    hand_penalty,
-    meld_score,
     opening_meld_value,
     red_three_score,
 )
-
-
-class RuleError(ValueError):
-    pass
+from canasta.scoring import calculate_round_score, calculate_total_score
+from canasta.turns import (
+    build_round_state,
+    check_winner,
+    collect_red_threes,
+    end_turn,
+    ensure_round_active,
+)
 
 
 @dataclass(frozen=True)
@@ -37,11 +38,6 @@ class ActionResult:
 
 
 class CanastaEngine:
-    _RANK_ORDER = {rank: idx for idx, rank in enumerate(RANKS)}
-    _RANK_ORDER["JOKER"] = len(RANKS)
-    _SUIT_ORDER = {suit: idx for idx, suit in enumerate(SUITS)}
-    _SUIT_ORDER[None] = len(SUITS)
-
     def __init__(self, seed: int | None = None) -> None:
         self._rng = random.Random(seed)
         self.state = self._build_round_state(
@@ -70,7 +66,7 @@ class CanastaEngine:
         return ActionResult(message=f"started round {self.state.round_number}")
 
     def draw_stock(self) -> ActionResult:
-        self._ensure_round_active()
+        ensure_round_active(self.state)
         if self.state.turn_drawn:
             raise RuleError("you already drew this turn")
         if len(self.state.stock) < DRAW_COUNT_PER_TURN:
@@ -82,22 +78,22 @@ class CanastaEngine:
         self.state.turn_drawn = True
 
         player = self.state.players[self.state.current_player]
-        auto = self._collect_red_threes(player)
-        self._sort_hand(player.hand)
+        auto = collect_red_threes(player, self.state.stock)
+        sort_hand(player.hand)
         suffix = (
             f" ({auto} red three{'s' if auto != 1 else ''} auto-melded)" if auto else ""
         )
         return ActionResult(message=f"drew 2 cards{suffix}")
 
     def pickup_discard(self, hand_indexes: list[int]) -> ActionResult:
-        self._ensure_round_active()
+        ensure_round_active(self.state)
         player = self.state.players[self.state.current_player]
         if self.state.turn_drawn:
             raise RuleError("you already drew this turn")
         if not self.state.discard:
             raise RuleError("discard pile is empty")
 
-        cards = self._pop_cards_from_hand(player.hand, hand_indexes)
+        cards = pop_cards_from_hand(player.hand, hand_indexes)
         from canasta.rules import validate_meld_cards
 
         top_discard = self.state.discard[-1]
@@ -105,21 +101,21 @@ class CanastaEngine:
             ok, reason = can_pickup_frozen_discard(top_discard, cards)
             if not ok:
                 player.hand.extend(cards)
-                self._sort_hand(player.hand)
+                sort_hand(player.hand)
                 raise RuleError(reason)
 
         meld_cards = cards + [top_discard]
         ok, reason = validate_meld_cards(meld_cards)
         if not ok:
             player.hand.extend(cards)
-            self._sort_hand(player.hand)
+            sort_hand(player.hand)
             raise RuleError(f"cannot pick up discard pile: {reason}")
 
         if not player.melds:
             value = opening_meld_value(meld_cards)
             if value < OPENING_MELD_MINIMUM:
                 player.hand.extend(cards)
-                self._sort_hand(player.hand)
+                sort_hand(player.hand)
                 raise RuleError(
                     f"opening meld must score at least {OPENING_MELD_MINIMUM} points "
                     f"(naturals only); this scores {value}"
@@ -131,8 +127,8 @@ class CanastaEngine:
         player.hand.extend(pile[:-1])
         self.state.turn_drawn = True
 
-        auto = self._collect_red_threes(player)
-        self._sort_hand(player.hand)
+        auto = collect_red_threes(player, self.state.stock)
+        sort_hand(player.hand)
         suffix = (
             f" ({auto} red three{'s' if auto != 1 else ''} auto-melded)" if auto else ""
         )
@@ -141,27 +137,27 @@ class CanastaEngine:
         )
 
     def create_meld(self, hand_indexes: list[int]) -> ActionResult:
-        self._ensure_round_active()
+        ensure_round_active(self.state)
         player = self.state.players[self.state.current_player]
         if not self.state.turn_drawn:
             raise RuleError("draw before melding")
         if not hand_indexes:
             raise RuleError("select cards for meld")
 
-        cards = self._pop_cards_from_hand(player.hand, hand_indexes)
+        cards = pop_cards_from_hand(player.hand, hand_indexes)
         from canasta.rules import validate_meld_cards
 
         ok, reason = validate_meld_cards(cards)
         if not ok:
             player.hand.extend(cards)
-            self._sort_hand(player.hand)
+            sort_hand(player.hand)
             raise RuleError(reason)
 
         if not player.melds:
             value = opening_meld_value(cards)
             if value < OPENING_MELD_MINIMUM:
                 player.hand.extend(cards)
-                self._sort_hand(player.hand)
+                sort_hand(player.hand)
                 raise RuleError(
                     f"opening meld must score at least {OPENING_MELD_MINIMUM} points "
                     f"(naturals only); this scores {value}"
@@ -171,26 +167,26 @@ class CanastaEngine:
         return ActionResult(message="created meld")
 
     def add_to_meld(self, meld_index: int, hand_indexes: list[int]) -> ActionResult:
-        self._ensure_round_active()
+        ensure_round_active(self.state)
         player = self.state.players[self.state.current_player]
         if not self.state.turn_drawn:
             raise RuleError("draw before melding")
         if meld_index < 0 or meld_index >= len(player.melds):
             raise RuleError("invalid meld index")
 
-        cards = self._pop_cards_from_hand(player.hand, hand_indexes)
+        cards = pop_cards_from_hand(player.hand, hand_indexes)
         meld = player.melds[meld_index]
         ok, reason = can_add_cards_to_meld(meld, cards)
         if not ok:
             player.hand.extend(cards)
-            self._sort_hand(player.hand)
+            sort_hand(player.hand)
             raise RuleError(reason)
 
         meld.cards.extend(cards)
         return ActionResult(message="added cards to meld")
 
     def discard(self, hand_index: int) -> ActionResult:
-        self._ensure_round_active()
+        ensure_round_active(self.state)
         if not self.state.turn_drawn:
             raise RuleError("draw before discarding")
 
@@ -202,47 +198,24 @@ class CanastaEngine:
         ok, reason = can_discard(card)
         if not ok:
             hand.insert(hand_index, card)
-            self._sort_hand(hand)
+            sort_hand(hand)
             raise RuleError(reason)
 
         self.state.discard.append(card)
-        self._check_winner()
+        check_winner(self.state)
         if self.state.winner is None:
-            self._end_turn()
+            end_turn(self.state)
         return ActionResult(message=f"discarded {card.label()}")
 
     def score(self, player_id: PlayerId) -> int:
         player = self.state.players[player_id]
-        total = meld_score(player.melds) + red_three_score(player.red_threes)
-        if self.state.winner is not None:
-            total -= hand_penalty(player.hand)
-        return total
+        return calculate_round_score(player, self.state.winner is not None)
 
     def total_score(self, player_id: PlayerId) -> int:
         player = self.state.players[player_id]
-        total = player.score
-        if self.state.winner is not None:
-            total += self.score(player_id)
-        return total
-
-    def _end_turn(self) -> None:
-        self.state.turn_drawn = False
-        self.state.current_player = (
-            PlayerId.SOUTH
-            if self.state.current_player == PlayerId.NORTH
-            else PlayerId.NORTH
-        )
-
-    def _check_winner(self) -> None:
-        player = self.state.players[self.state.current_player]
-        if player.hand:
-            return
-        if any(meld.is_canasta for meld in player.melds):
-            self.state.winner = self.state.current_player
-
-    def _ensure_round_active(self) -> None:
-        if self.state.winner is not None:
-            raise RuleError("round is over; start next-round or quit")
+        round_over = self.state.winner is not None
+        round_score = self.score(player_id)
+        return calculate_total_score(player, round_over, round_score)
 
     def _build_round_state(
         self,
@@ -250,69 +223,12 @@ class CanastaEngine:
         starting_player: PlayerId,
         round_number: int,
     ) -> GameState:
-        deck = build_double_deck()
-        self._rng.shuffle(deck)
-
-        north = PlayerState(hand=[], melds=[], score=scores[PlayerId.NORTH])
-        south = PlayerState(hand=[], melds=[], score=scores[PlayerId.SOUTH])
-        for _ in range(11):
-            north.hand.append(deck.pop())
-            south.hand.append(deck.pop())
-
-        state = GameState(
-            players={PlayerId.NORTH: north, PlayerId.SOUTH: south},
-            current_player=starting_player,
-            stock=deck,
-            discard=[deck.pop()],
+        """Build a new round using the turns module helper."""
+        return build_round_state(
+            scores=scores,
+            starting_player=starting_player,
             round_number=round_number,
-            turn_drawn=False,
-            winner=None,
-        )
-        self.state = state
-        for player in self.state.players.values():
-            self._collect_red_threes(player)
-            self._sort_hand(player.hand)
-        return state
-
-    def _collect_red_threes(self, player: PlayerState) -> int:
-        """Move red threes from hand to player.red_threes, drawing replacements.
-
-        Loops until no red threes remain in the hand (a replacement could itself
-        be a red three). Returns total count collected.
-        """
-        collected = 0
-        while True:
-            found = [c for c in player.hand if c.is_red_three()]
-            if not found:
-                break
-            for card in found:
-                player.hand.remove(card)
-                player.red_threes.append(card)
-                collected += 1
-                if self.state.stock:
-                    player.hand.append(self.state.stock.pop())
-        return collected
-
-    @staticmethod
-    def _pop_cards_from_hand(hand: list[Card], indexes: list[int]) -> list[Card]:
-        if not indexes:
-            raise RuleError("no card indexes provided")
-        unique_indexes = sorted(set(indexes), reverse=True)
-        if len(unique_indexes) != len(indexes):
-            raise RuleError("duplicate card indexes")
-        cards: list[Card] = []
-        for idx in unique_indexes:
-            if idx < 0 or idx >= len(hand):
-                raise RuleError("invalid hand index")
-            cards.append(hand.pop(idx))
-        cards.reverse()
-        return cards
-
-    @classmethod
-    def _sort_hand(cls, hand: list[Card]) -> None:
-        hand.sort(
-            key=lambda card: (
-                cls._RANK_ORDER.get(card.rank, len(RANKS) + 1),
-                cls._SUIT_ORDER.get(card.suit, len(SUITS) + 1),
-            )
+            rng=self._rng,
+            collect_red_threes_fn=collect_red_threes,
+            sort_hand_fn=sort_hand,
         )

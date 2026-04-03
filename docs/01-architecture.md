@@ -7,18 +7,22 @@
 ## Overview
 
 The project is a pure-Python, zero-dependency CLI implementation of Canasta.
-The codebase is divided into four strictly-layered modules:
+The codebase is divided into focused modules arranged by layering and responsibility:
 
 ```
-model.py   ← pure data structures (no logic)
-rules.py   ← pure functions over data (no state)
-engine.py  ← stateful orchestration (uses rules)
-bots.py    ← pluggable turn strategies (random/greedy/safe/aggro/planner)
-cli.py     ← I/O and command parsing (uses engine)
+model.py       ← pure data structures + RuleError exception
+rules.py       ← pure functions over data (no state)
+hands.py       ← hand manipulation utilities (sorting, card selection)
+scoring.py     ← round/cumulative scoring calculation
+turns.py       ← turn and round lifecycle management
+engine.py      ← stateful orchestration (uses all above)
+bots.py        ← pluggable turn strategies (random/greedy/safe/aggro/planner)
+cli.py         ← I/O and command parsing (uses engine)
 ```
 
-Each layer may only import from the layer(s) below it.
-This makes `model` and `rules` trivially testable in isolation and keeps the game engine independent of any display concerns.
+Each module imports only from those listed above it, maintaining separation of concerns.
+`model` and `rules` are pure and testable in isolation.
+Helpers like `hands`, `scoring`, and `turns` keep `engine` focused on orchestration rather than logic duplication.
 
 ---
 
@@ -74,27 +78,63 @@ Point values (from `CARD_POINTS`):
 
 ---
 
+### `hands.py` — Hand utilities
+
+Provides utilities for manipulating player hands:
+
+| Function | Purpose |
+|----------|---------|
+| `pop_cards_from_hand(hand, indexes)` | Remove cards from hand by index (in original order), with validation for duplicates and out-of-bounds. |
+| `sort_hand(hand)` | Sort hand in-place by rank then suit for deterministic display. |
+
+Hand sorting ensures that CLI command indexes are stable across draws, pickups, and failed meld rollbacks.
+
+---
+
+### `scoring.py` — Score calculation
+
+Computes round and cumulative scores:
+
+| Function | Purpose |
+|----------|---------|
+| `calculate_round_score(player, round_over)` | Sum of meld value + red-three bonus, minus hand penalty if round has ended. |
+| `calculate_total_score(player, round_over, round_score)` | Banked score plus the current round score (if round is over). |
+
+These helpers keep scoring logic separate from engine orchestration.
+
+---
+
+### `turns.py` — Turn and round lifecycle
+
+Manages turn flow and round initialization:
+
+| Function | Purpose |
+|----------|---------|
+| `end_turn(state)` | Switch current player and clear `turn_drawn` flag. |
+| `check_winner(state)` | Set winner if current player has empty hand + ≥1 canasta. |
+| `ensure_round_active(state)` | Raise `RuleError` if round is already over. |
+| `collect_red_threes(player, stock)` | Move red threes from hand to red_threes list, drawing replacements until none remain. |
+| `build_round_state(scores, starting_player, round_number, rng, …)` | Construct a fresh `GameState` for a new round: shuffle, deal 11 to each player, auto-collect red threes, sort hands. |
+
+---
+
 ### `engine.py` — Stateful orchestration
 
 `CanastaEngine` owns the single `GameState` instance and exposes the turn-by-turn API.
+It delegates hand manipulation to `hands.py`, scoring to `scoring.py`, and turn/round lifecycle to `turns.py`.
 
 **Construction** (`__init__(seed=None)`):
-1. Builds a double deck.
-2. Shuffles with `random.Random(seed)` — passing a seed makes the game deterministic for testing.
-3. Deals 11 cards to each player (alternating pops from the top of the shuffled deck).
-4. Pops one card to start the discard pile.
+Initializes the first round by calling `turns.build_round_state`.
 
 **Turn flow** (enforced by the engine):
 
 ```
 draw_stock() or pickup_discard()   # exactly one draw action first each turn
   → (optionally) create_meld() / add_to_meld()   # any number of times
-discard()             # ends the turn
+discard()             # ends the turn via check_winner() and end_turn()
 ```
 
 `pickup_discard(hand_indexes)` takes the entire discard pile into the player's turn, but requires the top discard card to be used immediately in a newly created meld with the selected hand cards. The remainder of the pile goes into the player's hand.
-
-Hands are kept sorted automatically by rank/suit after deal, draw, pickup, and rollback paths, so CLI hand indexes always reflect a deterministic order.
 
 The discard pile's frozen state is derived from its contents rather than stored separately: if any wild card or black three exists anywhere in the pile, the pile is considered frozen. In that state, pickup is restricted to an exact natural pair matching a natural top discard.
 
@@ -110,8 +150,6 @@ next_round()          # banks scores, redeals, increments round number, winner s
 Every method raises `RuleError` (a `ValueError` subclass) for illegal moves, with a plain-English message suitable for display in the CLI.
 
 `ActionResult` is a small frozen dataclass carrying only a `message` string — it lets callers display feedback without inspecting internal state.
-
-After `discard()` the engine calls `_check_winner()` (empty hand + ≥1 canasta → sets `state.winner`). If no winner exists, it then calls `_end_turn()` (flips `current_player`, clears `turn_drawn`).
 
 ---
 
