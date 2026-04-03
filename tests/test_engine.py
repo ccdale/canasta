@@ -18,10 +18,11 @@ class TestInit:
         assert len(eng.state.players[PlayerId.NORTH].hand) == 11
         assert len(eng.state.players[PlayerId.SOUTH].hand) == 11
 
-    def test_stock_has_85_cards(self):
-        # 108 - 22 dealt - 1 discard = 85
+    def test_stock_conservation_after_init(self):
+        # stock + red threes placed = 85 (108 - 22 dealt - 1 discard)
         eng = make_engine()
-        assert len(eng.state.stock) == 85
+        red_three_count = sum(len(p.red_threes) for p in eng.state.players.values())
+        assert len(eng.state.stock) + red_three_count == 85
 
     def test_one_card_in_discard(self):
         eng = make_engine()
@@ -187,7 +188,82 @@ class TestDiscard:
 
 
 class TestScore:
-    def test_score_starts_zero(self):
+    def test_no_meld_score_at_start(self):
+        # No melds have been played yet; only red-three bonus may be present.
+        from canasta.rules import meld_score
+
         eng = make_engine()
-        assert eng.score(PlayerId.NORTH) == 0
-        assert eng.score(PlayerId.SOUTH) == 0
+        for player in eng.state.players.values():
+            assert meld_score(player.melds) == 0
+
+
+class TestRedThrees:
+    """Red three auto-meld behaviour."""
+
+    def _engine_with_red_three_in_hand(self) -> CanastaEngine:
+        """Return a fresh engine with a red three injected into NORTH's hand slot 0."""
+        eng = CanastaEngine(seed=SEED)
+        # Clear any red threes already auto-melded so the hand has room.
+        # Inject a fresh red three at position 0 (overwriting whatever is there).
+        eng.state.players[PlayerId.NORTH].hand[0] = Card("3", "H")
+        return eng
+
+    def test_red_threes_removed_from_hand_at_init(self):
+        eng = make_engine()
+        for player in eng.state.players.values():
+            assert all(not c.is_red_three() for c in player.hand)
+
+    def test_red_threes_placed_in_red_threes_list_at_init(self):
+        # seed=42 deals 3H and 3D to NORTH
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        assert len(north.red_threes) == 2
+        assert all(c.is_red_three() for c in north.red_threes)
+
+    def test_hand_size_preserved_after_red_three_replacement(self):
+        # Each red three drawn at init is replaced; hand stays at 11.
+        eng = make_engine()
+        for player in eng.state.players.values():
+            assert len(player.hand) == 11
+
+    def test_red_three_drawn_during_turn_auto_melded(self):
+        eng = make_engine()
+        # Inject a red three into the stock so it will be drawn.
+        eng.state.stock.append(Card("3", "D"))
+        before_red_threes = len(eng.state.players[PlayerId.NORTH].red_threes)
+        result = eng.draw_stock()
+        after_red_threes = len(eng.state.players[PlayerId.NORTH].red_threes)
+        assert after_red_threes > before_red_threes
+        assert "auto-melded" in result.message
+
+    def test_hand_size_stable_after_mid_turn_red_three(self):
+        eng = make_engine()
+        eng.state.stock.append(Card("3", "H"))
+        before = len(eng.current_hand())
+        eng.draw_stock()
+        # Drew 2, one was a red three (replaced from stock) → net +2 in hand
+        assert len(eng.current_hand()) == before + 2
+
+    def test_red_three_score_one(self):
+        from canasta.rules import red_three_score
+
+        assert red_three_score([Card("3", "H")]) == 100
+
+    def test_red_three_score_two(self):
+        from canasta.rules import red_three_score
+
+        assert red_three_score([Card("3", "H"), Card("3", "D")]) == 200
+
+    def test_red_three_score_all_four(self):
+        from canasta.rules import red_three_score
+
+        cards = [Card("3", "H"), Card("3", "D"), Card("3", "H"), Card("3", "D")]
+        assert red_three_score(cards) == 800
+
+    def test_score_includes_red_threes(self):
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        from canasta.rules import red_three_score
+
+        expected = red_three_score(north.red_threes)
+        assert eng.score(PlayerId.NORTH) == expected

@@ -12,7 +12,12 @@ from canasta.model import (
     PlayerState,
     build_double_deck,
 )
-from canasta.rules import can_add_cards_to_meld, can_discard, meld_score
+from canasta.rules import (
+    can_add_cards_to_meld,
+    can_discard,
+    meld_score,
+    red_three_score,
+)
 
 
 class RuleError(ValueError):
@@ -43,6 +48,9 @@ class CanastaEngine:
             discard=discard,
             turn_drawn=False,
         )
+        # Auto-meld red threes dealt into opening hands.
+        for player in self.state.players.values():
+            self._collect_red_threes(player)
 
     def current_hand(self) -> list[Card]:
         return self.state.players[self.state.current_player].hand
@@ -57,7 +65,13 @@ class CanastaEngine:
         for _ in range(DRAW_COUNT_PER_TURN):
             hand.append(self.state.stock.pop())
         self.state.turn_drawn = True
-        return ActionResult(message="drew 2 cards")
+
+        player = self.state.players[self.state.current_player]
+        auto = self._collect_red_threes(player)
+        suffix = (
+            f" ({auto} red three{'s' if auto != 1 else ''} auto-melded)" if auto else ""
+        )
+        return ActionResult(message=f"drew 2 cards{suffix}")
 
     def create_meld(self, hand_indexes: list[int]) -> ActionResult:
         player = self.state.players[self.state.current_player]
@@ -115,7 +129,7 @@ class CanastaEngine:
 
     def score(self, player_id: PlayerId) -> int:
         player = self.state.players[player_id]
-        return meld_score(player.melds)
+        return meld_score(player.melds) + red_three_score(player.red_threes)
 
     def _end_turn(self) -> None:
         self.state.turn_drawn = False
@@ -131,6 +145,25 @@ class CanastaEngine:
             return
         if any(meld.is_canasta for meld in player.melds):
             self.state.winner = self.state.current_player
+
+    def _collect_red_threes(self, player: PlayerState) -> int:
+        """Move red threes from hand to player.red_threes, drawing replacements.
+
+        Loops until no red threes remain in the hand (a replacement could itself
+        be a red three). Returns total count collected.
+        """
+        collected = 0
+        while True:
+            found = [c for c in player.hand if c.is_red_three()]
+            if not found:
+                break
+            for card in found:
+                player.hand.remove(card)
+                player.red_threes.append(card)
+                collected += 1
+                if self.state.stock:
+                    player.hand.append(self.state.stock.pop())
+        return collected
 
     @staticmethod
     def _pop_cards_from_hand(hand: list[Card], indexes: list[int]) -> list[Card]:

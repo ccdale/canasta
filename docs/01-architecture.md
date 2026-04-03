@@ -31,7 +31,7 @@ Defines the canonical types that every other module talks in.
 |------|---------|
 | `Card(rank, suit)` | Immutable (`frozen=True`) card value. Rank uses single-char strings (`A 2 … 9 T J Q K`) plus the literal `"JOKER"`. |
 | `Meld(cards)` | A group of played cards. Exposes computed properties: `natural_rank`, `natural_count`, `wild_count`, `is_canasta`. |
-| `PlayerState` | A player's `hand`, `melds`, and running `score`. |
+| `PlayerState` | A player's `hand`, `melds`, `red_threes`, and running `score`. |
 | `GameState` | The authoritative game snapshot: both `PlayerState`s keyed by `PlayerId`, the `stock`, the `discard` pile, `current_player`, `turn_drawn` flag, and `winner`. |
 | `PlayerId` | `Enum` with values `NORTH` / `SOUTH`. |
 
@@ -115,10 +115,10 @@ All `RuleError` exceptions are caught and printed as plain messages; the game co
 
 ## What is not yet implemented
 
+- ~~Red three auto-meld on draw~~ ✓ done
 - Picking up the discard pile
 - Discard pile freeze / unfreeze
 - Opening meld minimum point requirement
-- Red three auto-meld on draw
 - Hand-card penalties at round end
 - Multi-round / cumulative scoring
 - AI player

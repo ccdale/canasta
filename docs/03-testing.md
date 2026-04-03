@@ -109,10 +109,11 @@ def test_cards_returned_to_hand_on_failure(self):
 
 ---
 
-## Coverage summary (61 tests)
+## Coverage summary (74 tests)
 
 | Area | Tests | What they verify |
 |------|-------|-----------------|
+| `Card.is_red_three` | 4 | red 3♥, red 3♦, black threes, other ranks |
 | `Card` | 6 | label formatting, `is_wild`, immutability |
 | `Meld` | 5 | `natural_rank`, `natural_count`, `wild_count`, `is_canasta` threshold |
 | `build_double_deck` | 3 | total size, joker count, every regular card appears exactly twice |
@@ -125,7 +126,8 @@ def test_cards_returned_to_hand_on_failure(self):
 | `create_meld` | 4 | success, draw-first gate, invalid meld error, state rollback |
 | `add_to_meld` | 3 | success, draw-first gate, invalid meld index |
 | `discard` | 6 | hand shrinkage, pile growth, turn rotation, draw-first gate, red-three block, invalid index |
-| Score | 1 | initial score is zero |
+| Score | 1 | no meld score at start (red three bonus may be non-zero) |
+| Red threes (engine) | 9 | auto-meld at init, hand size preserved, mid-turn trigger, message, `red_three_score` (1/2/4), score integration |
 
 ---
 
@@ -147,6 +149,7 @@ Expected output includes the dealt hand, stock/discard sizes, and a clean exit �
 - Turn cycling between NORTH and SOUTH over multiple rounds
 - Win-condition path (empty hand + canasta)
 - Edge cases around stock exhaustion
+- ~~Red three auto-meld~~ ✓ now covered
 
 ---
 

@@ -51,6 +51,15 @@ def can_discard(card: Card) -> tuple[bool, str]:
     return True, "ok"
 
 
+def red_three_score(red_threes: list[Card]) -> int:
+    """100 pts each; all four doubles to 200 each (800 total)."""
+    count = len(red_threes)
+    if count == 0:
+        return 0
+    per_card = 200 if count == 4 else 100
+    return count * per_card
+
+
 def hand_score(cards: list[Card]) -> int:
     return sum(CARD_POINTS[card.rank] for card in cards)
 

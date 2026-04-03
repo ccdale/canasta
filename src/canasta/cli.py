@@ -17,7 +17,9 @@ HELP_TEXT = """Commands:
 def _render_state(engine: CanastaEngine) -> str:
     state = engine.state
     player = state.players[state.current_player]
-    opponent_id = PlayerId.SOUTH if state.current_player == PlayerId.NORTH else PlayerId.NORTH
+    opponent_id = (
+        PlayerId.SOUTH if state.current_player == PlayerId.NORTH else PlayerId.NORTH
+    )
     opponent = state.players[opponent_id]
 
     hand = " ".join(f"{i}:{label}" for i, label in enumerate(hand_labels(player.hand)))
@@ -26,12 +28,18 @@ def _render_state(engine: CanastaEngine) -> str:
         for idx, meld in enumerate(player.melds)
     ]
     meld_block = "\n".join(meld_lines) if meld_lines else "(none)"
+    red_three_block = (
+        " ".join(c.label() for c in player.red_threes)
+        if player.red_threes
+        else "(none)"
+    )
 
     return (
         f"Current: {state.current_player.value}\n"
         f"Stock: {len(state.stock)}  Discard top: {state.discard[-1].label()}\n"
         f"Your hand: {hand or '(empty)'}\n"
         f"Your melds:\n{meld_block}\n"
+        f"Your red threes: {red_three_block}\n"
         f"Opponent meld count: {len(opponent.melds)}\n"
         f"Turn drawn: {state.turn_drawn}\n"
         f"Scores north={engine.score(PlayerId.NORTH)} south={engine.score(PlayerId.SOUTH)}"

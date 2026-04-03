@@ -34,6 +34,19 @@ class TestCard:
         with pytest.raises(Exception):
             card.rank = "K"  # type: ignore[misc]
 
+    def test_is_red_three_hearts(self):
+        assert Card("3", "H").is_red_three()
+
+    def test_is_red_three_diamonds(self):
+        assert Card("3", "D").is_red_three()
+
+    def test_is_not_red_three_black(self):
+        assert not Card("3", "S").is_red_three()
+        assert not Card("3", "C").is_red_three()
+
+    def test_is_not_red_three_other_rank(self):
+        assert not Card("A", "H").is_red_three()
+
 
 class TestMeld:
     def _meld(self, *specs: tuple[str, str | None]) -> Meld:

@@ -45,6 +45,28 @@ Wild cards can substitute for natural cards in a meld, subject to the ratio cons
 
 ---
 
+## Red threes
+
+Red threes (3♥ and 3♦) are special bonus cards — they cannot be melded normally and are never discarded.
+
+### Auto-meld on draw
+
+Whenever a player draws a card that is a red three it is **immediately** moved from the hand to a dedicated `player.red_threes` list, and a replacement card is drawn from the stock.
+This chaining loops: if the replacement is also a red three, that is processed too.
+
+The same logic runs at deal time — any red threes in the opening 11-card hand are auto-collected before a player's first turn.
+
+### Red three scoring (`red_three_score`)
+
+| Count held | Score |
+|-----------|-------|
+| 1, 2, or 3 | 100 pts each |
+| All 4 | 200 pts each (800 total) |
+
+Red three scores are combined with meld scores in `CanastaEngine.score()`.
+
+---
+
 ## Melds
 
 A **meld** is a set of cards played face-up in front of a player.
@@ -138,7 +160,7 @@ The following standard Canasta rules are not yet encoded:
 
 | Rule | Status |
 |------|--------|
-| Red three auto-meld when drawn | Not implemented |
+| Red three auto-meld when drawn | ✓ Implemented |
 | Picking up the discard pile | Not implemented |
 | Discard pile freeze | Not implemented |
 | Opening meld minimum point threshold | Not implemented |

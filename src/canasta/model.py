@@ -28,6 +28,9 @@ class Card:
     def is_wild(self) -> bool:
         return self.rank in WILD_RANKS
 
+    def is_red_three(self) -> bool:
+        return self.rank == "3" and self.suit in {"H", "D"}
+
 
 @dataclass
 class Meld:
@@ -57,6 +60,7 @@ class Meld:
 class PlayerState:
     hand: list[Card] = field(default_factory=list)
     melds: list[Meld] = field(default_factory=list)
+    red_threes: list[Card] = field(default_factory=list)
     score: int = 0
 
 
