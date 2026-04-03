@@ -154,7 +154,8 @@ def main(argv: list[str] | None = None) -> int:
 
         gi.require_version("Gdk", "4.0")
         gi.require_version("Gtk", "4.0")
-        from gi.repository import Gdk, Gio, GLib, Gtk
+        gi.require_version("GdkPixbuf", "2.0")
+        from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
     except ModuleNotFoundError:
         exit_code = _reexec_with_system_python(argv or sys.argv[1:])
         if exit_code is not None:
@@ -177,20 +178,22 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     def _build_card_picture(image_path: Path) -> Gtk.Widget:
-        picture = Gtk.Picture.new_for_filename(str(image_path))
-        picture.set_content_fit(Gtk.ContentFit.FILL)
-        picture.set_hexpand(True)
-        picture.set_vexpand(True)
-        # Wrap in a Box whose natural size is exactly CARD_W×CARD_H; the wrapper
-        # refuses to expand so the Picture inside can't grow beyond those dimensions.
-        wrapper = Gtk.Box()
-        wrapper.set_size_request(CARD_W, CARD_H)
-        wrapper.set_halign(Gtk.Align.START)
-        wrapper.set_valign(Gtk.Align.START)
-        wrapper.set_hexpand(False)
-        wrapper.set_vexpand(False)
-        wrapper.append(picture)
-        return wrapper
+        # Pre-scale via GdkPixbuf so the widget's natural size is exactly
+        # CARD_W×CARD_H — Gtk.Picture expands to fill allocated space regardless
+        # of set_size_request, but Gtk.Image from a pixbuf reports pixbuf dimensions.
+        try:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                str(image_path), CARD_W, CARD_H, False
+            )
+            img = Gtk.Image.new_from_pixbuf(pixbuf)
+        except Exception:
+            img = Gtk.Image()
+        img.set_size_request(CARD_W, CARD_H)
+        img.set_halign(Gtk.Align.START)
+        img.set_valign(Gtk.Align.START)
+        img.set_hexpand(False)
+        img.set_vexpand(False)
+        return img
 
     def _build_card_widget(card: Card, assets_root: Path) -> Gtk.Widget:
         path = card_image_path(card, assets_root)
