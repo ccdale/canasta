@@ -180,6 +180,10 @@ def main(argv: list[str] | None = None) -> int:
         picture = Gtk.Picture.new_for_filename(str(image_path))
         picture.set_size_request(CARD_W, CARD_H)
         picture.set_content_fit(Gtk.ContentFit.FILL)
+        picture.set_halign(Gtk.Align.START)
+        picture.set_valign(Gtk.Align.START)
+        picture.set_hexpand(False)
+        picture.set_vexpand(False)
         return picture
 
     def _build_card_widget(card: Card, assets_root: Path) -> Gtk.Widget:
