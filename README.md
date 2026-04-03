@@ -12,8 +12,7 @@ Standalone Canasta project built to teach game architecture incrementally.
 
 ```bash
 cd ~/src/canasta
-uv venv .venv
-uv pip install --python .venv/bin/python -e .
+uv sync
 uv run canasta
 ```
 
