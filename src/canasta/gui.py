@@ -553,10 +553,13 @@ def main(argv: list[str] | None = None) -> int:
             discard_title = Gtk.Label(label=f"Discard ({len(state.discard)})")
             discard_title.add_css_class("section-label")
             self.discard_box.append(discard_title)
-            top_discard = state.discard[-1]
-            self.discard_box.append(
-                self._render_card_widget(top_discard, _format_card(top_discard))
-            )
+            if state.discard:
+                top_discard = state.discard[-1]
+                self.discard_box.append(
+                    self._render_card_widget(top_discard, _format_card(top_discard))
+                )
+            else:
+                self.discard_box.append(Gtk.Label(label="(empty)"))
 
         def _refresh_hand(self) -> None:
             self._clear_box(self.hand_fixed)
