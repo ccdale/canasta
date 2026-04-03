@@ -109,7 +109,7 @@ def test_cards_returned_to_hand_on_failure(self):
 
 ---
 
-## Coverage summary (106 tests)
+## Coverage summary (115 tests)
 
 | Area | Tests | What they verify |
 |------|-------|-----------------|
@@ -122,6 +122,7 @@ def test_cards_returned_to_hand_on_failure(self):
 | `can_discard` | 5 | red 3♥, red 3♦, black three, regular card, wild two |
 | discard pile freeze helpers | 10 | freeze-card detection, pile frozen/unfrozen status, frozen pickup allowed/rejected cases |
 | `opening_meld_value` | 4 | naturals only, wilds excluded, constant value, meets minimum |
+| `hand_penalty` | 3 | empty hand, same values as `hand_score`, regular-card examples |
 | `hand_score` / `meld_score` | 8 | individual card values, mixed hand, canasta bonus |
 | Engine init | 5 | hand sizes, stock size, discard pile, starting player, draw flag |
 | `draw_stock` | 4 | hand growth, stock shrinkage, flag set, double-draw error |
@@ -129,9 +130,10 @@ def test_cards_returned_to_hand_on_failure(self):
 | `add_to_meld` | 3 | success, draw-first gate, invalid meld index |
 | `discard` | 6 | hand shrinkage, pile growth, turn rotation, draw-first gate, red-three block, invalid index |
 | `pickup_discard` | 12 | meld creation with top discard, pile transfer to hand, turn state, already-drew gate, rollback on invalid pickup, opening-threshold enforcement, opening exemption after first meld, empty pile, frozen-pile allowed/rejected cases |
-| Score | 1 | no meld score at start (red three bonus may be non-zero) |
+| Score | 5 | no meld score at start, no pre-round-end hand penalty, losing-hand penalty, winner score unchanged, positive meld score reduced by hand penalty |
 | Opening meld (engine) | 6 | below minimum rejected, cards restored, exactly at minimum, above minimum, wilds excluded from value, subsequent meld exempt |
 | Red threes (engine) | 9 | auto-meld at init, hand size preserved, mid-turn trigger, message, `red_three_score` (1/2/4), score integration |
+| Winner detection | 2 | winner set only when hand empties with a canasta |
 
 ---
 
@@ -157,6 +159,7 @@ Expected output includes the dealt hand, stock/discard sizes, and a clean exit �
 - ~~Opening meld minimum~~ ✓ now covered
 - ~~Discard pile pickup~~ ✓ now covered
 - ~~Discard pile freeze~~ ✓ now covered
+- ~~Hand-card penalties~~ ✓ now covered
 
 ---
 

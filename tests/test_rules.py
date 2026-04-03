@@ -3,10 +3,11 @@
 from canasta.model import Card, Meld
 from canasta.rules import (
     OPENING_MELD_MINIMUM,
-    can_pickup_frozen_discard,
     can_add_cards_to_meld,
     can_discard,
+    can_pickup_frozen_discard,
     discard_pile_is_frozen,
+    hand_penalty,
     hand_score,
     is_discard_freeze_card,
     meld_score,
@@ -160,6 +161,18 @@ class TestHandScore:
     def test_mixed_hand(self):
         cards = [c("JOKER"), c("A", "S"), c("K", "H"), c("7", "D")]
         assert hand_score(cards) == 50 + 20 + 10 + 5
+
+
+class TestHandPenalty:
+    def test_empty_hand(self):
+        assert hand_penalty([]) == 0
+
+    def test_same_values_as_hand_score(self):
+        cards = [c("JOKER"), c("A", "S"), c("K", "H"), c("7", "D")]
+        assert hand_penalty(cards) == hand_score(cards)
+
+    def test_regular_cards(self):
+        assert hand_penalty([c("K", "S"), c("7", "H")]) == 15
 
 
 class TestMeldScore:

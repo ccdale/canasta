@@ -33,13 +33,19 @@ def discard_pile_is_frozen(discard: list[Card]) -> bool:
 
 def can_pickup_frozen_discard(top_discard: Card, cards: list[Card]) -> tuple[bool, str]:
     if top_discard.is_wild() or top_discard.is_black_three():
-        return False, "cannot pick up a frozen pile with a wild card or black three on top"
+        return (
+            False,
+            "cannot pick up a frozen pile with a wild card or black three on top",
+        )
     if len(cards) != 2:
         return False, "frozen discard pickup requires exactly 2 hand cards"
     if any(card.is_wild() for card in cards):
         return False, "frozen discard pickup requires natural matching cards"
     if any(card.rank != top_discard.rank for card in cards):
-        return False, "frozen discard pickup requires a natural pair matching the top discard"
+        return (
+            False,
+            "frozen discard pickup requires a natural pair matching the top discard",
+        )
     return True, "ok"
 
 
@@ -89,6 +95,14 @@ def opening_meld_value(cards: list[Card]) -> int:
     Wild cards do not count towards the opening threshold.
     """
     return sum(CARD_POINTS[card.rank] for card in cards if card.rank not in WILD_RANKS)
+
+
+def hand_penalty(cards: list[Card]) -> int:
+    """Round-end penalty for cards left in hand.
+
+    This currently uses the same point table as positive card scoring.
+    """
+    return hand_score(cards)
 
 
 def hand_score(cards: list[Card]) -> int:

@@ -14,10 +14,11 @@ from canasta.model import (
 )
 from canasta.rules import (
     OPENING_MELD_MINIMUM,
-    can_pickup_frozen_discard,
     can_add_cards_to_meld,
     can_discard,
+    can_pickup_frozen_discard,
     discard_pile_is_frozen,
+    hand_penalty,
     meld_score,
     opening_meld_value,
     red_three_score,
@@ -188,7 +189,10 @@ class CanastaEngine:
 
     def score(self, player_id: PlayerId) -> int:
         player = self.state.players[player_id]
-        return meld_score(player.melds) + red_three_score(player.red_threes)
+        total = meld_score(player.melds) + red_three_score(player.red_threes)
+        if self.state.winner is not None:
+            total -= hand_penalty(player.hand)
+        return total
 
     def _end_turn(self) -> None:
         self.state.turn_drawn = False

@@ -318,6 +318,72 @@ class TestScore:
         for player in eng.state.players.values():
             assert meld_score(player.melds) == 0
 
+    def test_hand_cards_not_penalized_before_round_end(self):
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        north.hand = [Card("A", "S"), Card("K", "H")]
+        north.red_threes = []
+        assert eng.score(PlayerId.NORTH) == 0
+
+    def test_round_end_penalizes_losing_hand(self):
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        south = eng.state.players[PlayerId.SOUTH]
+        north.melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]
+        north.hand = []
+        south.hand = [Card("JOKER"), Card("A", "S")]
+        eng.state.winner = PlayerId.NORTH
+        assert eng.score(PlayerId.SOUTH) == -(50 + 20)
+
+    def test_round_end_keeps_winner_hand_penalty_zero(self):
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        north.melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]
+        north.hand = []
+        north.red_threes = []
+        eng.state.winner = PlayerId.NORTH
+        assert eng.score(PlayerId.NORTH) == 60
+
+    def test_round_end_applies_to_positive_score_too(self):
+        eng = make_engine()
+        south = eng.state.players[PlayerId.SOUTH]
+        south.melds = [Meld(cards=[Card("K", "S"), Card("K", "H"), Card("K", "D")])]
+        south.hand = [Card("A", "S")]
+        eng.state.winner = PlayerId.NORTH
+        assert eng.score(PlayerId.SOUTH) == 30 - 20
+
+
+class TestWinner:
+    def test_discard_sets_winner_with_empty_hand_and_canasta(self):
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        north.melds = [
+            Meld(
+                cards=[
+                    Card("A", "S"),
+                    Card("A", "H"),
+                    Card("A", "D"),
+                    Card("A", "C"),
+                    Card("A", "S"),
+                    Card("A", "H"),
+                    Card("A", "D"),
+                ]
+            )
+        ]
+        north.hand = [Card("K", "S")]
+        eng.state.turn_drawn = True
+        eng.discard(0)
+        assert eng.state.winner == PlayerId.NORTH
+
+    def test_discard_does_not_set_winner_without_canasta(self):
+        eng = make_engine()
+        north = eng.state.players[PlayerId.NORTH]
+        north.melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]
+        north.hand = [Card("K", "S")]
+        eng.state.turn_drawn = True
+        eng.discard(0)
+        assert eng.state.winner is None
+
 
 class TestRedThrees:
     """Red three auto-meld behaviour."""

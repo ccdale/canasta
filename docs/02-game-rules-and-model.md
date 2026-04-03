@@ -174,7 +174,8 @@ Other discard rules (freeze/unfreeze of the discard pile) are noted in the archi
 
 ## Scoring
 
-Scores are calculated over **melded cards only** — cards still in hand are not yet penalised.
+During an active round, scores are calculated from melds and red threes only.
+Once the round ends (`GameState.winner` is set), cards still left in hand are applied as a negative penalty.
 
 ### Card point values
 
@@ -190,6 +191,17 @@ Scores are calculated over **melded cards only** — cards still in hand are not
 Each canasta (meld ≥ 7 cards) adds **+300** to the meld's total.
 
 `meld_score(melds)` sums everything: card values across all melds plus canasta bonuses.
+
+### Hand-card penalty at round end
+
+`hand_penalty(cards)` uses the same point table as positive card scoring, but subtracts those points from a player's final round score once the round has ended.
+
+Examples:
+
+- Hand left as `JOKER AS` → `-70`
+- Hand left as `KH 7D` → `-15`
+
+The current engine applies this penalty only after a winner exists, so in-progress score display remains focused on positive meld/red-three progress.
 
 ---
 
@@ -214,7 +226,7 @@ The following standard Canasta rules are not yet encoded:
 | Opening meld minimum (50 pts natural) | ✓ Implemented |
 | Picking up the discard pile | ✓ Implemented |
 | Discard pile freeze | ✓ Implemented |
-| Hand-card penalties at round end | Not implemented |
+| Hand-card penalties at round end | ✓ Implemented |
 | Multi-round scoring | Not implemented |
 
 ---

@@ -58,6 +58,7 @@ All functions are stateless: they take values and return `(bool, str)` tuples (s
 | `discard_pile_is_frozen(discard)` | Returns whether any wild card or black three in the pile keeps it frozen. |
 | `can_pickup_frozen_discard(top_discard, cards)` | Enforces the stricter pickup rule for a frozen pile: exact natural pair matching a natural top discard. |
 | `opening_meld_value(cards)` | Sums points for natural cards only (wilds excluded) — used to enforce the opening meld threshold. |
+| `hand_penalty(cards)` | Round-end penalty for cards left in a player's hand. |
 | `hand_score(cards)` | Sums point values for a list of cards. |
 | `meld_score(melds)` | Sums `hand_score` for all meld cards, adding +300 for each canasta (≥7 cards). |
 
@@ -126,7 +127,7 @@ All `RuleError` exceptions are caught and printed as plain messages; the game co
 - ~~Opening meld minimum point requirement~~ ✓ done
 - ~~Picking up the discard pile~~ ✓ done
 - ~~Discard pile freeze / unfreeze~~ ✓ done
-- Hand-card penalties at round end
+- ~~Hand-card penalties at round end~~ ✓ done
 - Multi-round / cumulative scoring
 - AI player
 - Persistence / save-load
