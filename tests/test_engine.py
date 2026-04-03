@@ -406,7 +406,17 @@ class TestWinner:
         eng = make_engine()
         north = eng.state.players[PlayerId.NORTH]
         north.melds = [
-            Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D"), Card("A", "C"), Card("A", "S"), Card("A", "H"), Card("A", "D")])
+            Meld(
+                cards=[
+                    Card("A", "S"),
+                    Card("A", "H"),
+                    Card("A", "D"),
+                    Card("A", "C"),
+                    Card("A", "S"),
+                    Card("A", "H"),
+                    Card("A", "D"),
+                ]
+            )
         ]
         north.hand = [Card("K", "S")]
         eng.state.turn_drawn = True
