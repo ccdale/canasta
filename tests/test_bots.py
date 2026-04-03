@@ -1,14 +1,13 @@
 """Tests for canasta.bots."""
 
-from canasta.bots import (
+from canasta.bot_strategies import (
     AggroBot,
     GreedyBot,
     PlannerBot,
     RandomBot,
     SafeBot,
-    build_bot,
-    play_bot_turn,
 )
+from canasta.bots import build_bot, play_bot_turn
 from canasta.engine import CanastaEngine
 from canasta.model import Card, PlayerId
 

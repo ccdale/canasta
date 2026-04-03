@@ -2,7 +2,14 @@
 
 import random
 
-from canasta.model import Card, GameState, PlayerId, PlayerState, RuleError, build_double_deck
+from canasta.model import (
+    Card,
+    GameState,
+    PlayerId,
+    PlayerState,
+    RuleError,
+    build_double_deck,
+)
 
 
 def end_turn(state: GameState) -> None:
@@ -13,9 +20,7 @@ def end_turn(state: GameState) -> None:
     """
     state.turn_drawn = False
     state.current_player = (
-        PlayerId.SOUTH
-        if state.current_player == PlayerId.NORTH
-        else PlayerId.NORTH
+        PlayerId.SOUTH if state.current_player == PlayerId.NORTH else PlayerId.NORTH
     )
 
 

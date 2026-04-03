@@ -4,9 +4,7 @@ from canasta.model import PlayerId, PlayerState
 from canasta.rules import hand_penalty, meld_score, red_three_score
 
 
-def calculate_round_score(
-    player: PlayerState, round_over: bool
-) -> int:
+def calculate_round_score(player: PlayerState, round_over: bool) -> int:
     """Calculate score for a player in the current round.
 
     Args:

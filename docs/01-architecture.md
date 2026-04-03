@@ -10,19 +10,21 @@ The project is a pure-Python, zero-dependency CLI implementation of Canasta.
 The codebase is divided into focused modules arranged by layering and responsibility:
 
 ```
-model.py       ← pure data structures + RuleError exception
-rules.py       ← pure functions over data (no state)
-hands.py       ← hand manipulation utilities (sorting, card selection)
-scoring.py     ← round/cumulative scoring calculation
-turns.py       ← turn and round lifecycle management
-engine.py      ← stateful orchestration (uses all above)
-bots.py        ← pluggable turn strategies (random/greedy/safe/aggro/planner)
-cli.py         ← I/O and command parsing (uses engine)
+model.py           ← pure data structures + RuleError exception
+rules.py           ← pure functions over data (no state)
+hands.py           ← hand manipulation utilities (sorting, card selection)
+scoring.py         ← round/cumulative scoring calculation
+turns.py           ← turn and round lifecycle management
+engine.py          ← stateful orchestration (uses all above)
+bot_strategies.py  ← bot strategy implementations (protocol + 5 bot types)
+bots.py            ← bot factory and turn orchestration
+cli.py             ← I/O and command parsing (uses engine + bots)
 ```
 
 Each module imports only from those listed above it, maintaining separation of concerns.
 `model` and `rules` are pure and testable in isolation.
-Helpers like `hands`, `scoring`, and `turns` keep `engine` focused on orchestration rather than logic duplication.
+Helpers like `hands`, `scoring`, and `turns` keep `engine` focused on orchestration.
+`bot_strategies` contains pure strategy logic; `bots` provides the factory and orchestrator.
 
 ---
 
@@ -179,9 +181,9 @@ All `RuleError` exceptions are caught and printed as plain messages; the game co
 
 When the current player is bot-controlled, the CLI auto-plays that full turn via `play_bot_turn` from `bots.py`.
 
-### `bots.py` — AI turn strategies
+### `bot_strategies.py` — Bot strategy implementations
 
-Defines a small strategy protocol plus concrete bot types:
+Defines the `TurnBot` protocol and five concrete bot strategy classes:
 
 | Bot | Behavior |
 |-----|----------|
@@ -191,7 +193,22 @@ Defines a small strategy protocol plus concrete bot types:
 | `AggroBot` | Aggressive play: prefers large melds quickly and sheds high-point cards early. |
 | `PlannerBot` | Balanced heuristic play: favors high-value meld opportunities and preserves wild/synergy cards when discarding. |
 
-`build_bot(kind, seed)` instantiates bot implementations and `play_bot_turn(engine, bot)` executes one full legal turn (`draw` → meld attempts → `discard`).
+Each bot implements `choose_meld_indexes(hand, opening_required)` and `choose_discard_index(hand)`.
+
+Helper functions: `_eligible_natural_meld_candidates()` (finds valid meld candidates) and `_natural_density()` (counts natural cards in a list).
+
+---
+
+### `bots.py` — Bot factory and turn orchestration
+
+Factory and orchestration functions for running bot turns:
+
+| Function | Purpose |
+|----------|---------|
+| `build_bot(kind, seed)` | Instantiate a bot of the given type. |
+| `play_bot_turn(engine, bot)` | Execute one full legal turn sequence (draw → meld attempts → discard), returning action summaries. |
+
+Exports `BotKind` type alias for valid bot strategy names.
 
 ---
 

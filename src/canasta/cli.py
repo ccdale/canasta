@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import argparse
 
-from canasta.bots import BotKind, TurnBot, build_bot, play_bot_turn
+from canasta.bot_strategies import TurnBot
+from canasta.bots import BotKind, build_bot, play_bot_turn
 from canasta.engine import CanastaEngine
 from canasta.model import Card, PlayerId, RuleError, hand_labels
 from canasta.rules import discard_pile_is_frozen
