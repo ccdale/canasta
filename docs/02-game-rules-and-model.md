@@ -250,4 +250,15 @@ The following standard Canasta rules are not yet encoded:
 
 ---
 
+## AI players
+
+The CLI supports optional bot controllers for either seat:
+
+- `random` — legal but stochastic action selection
+- `greedy` — immediate-score heuristic for melding/discarding
+
+Bots operate through the same engine API as human commands, so they cannot bypass rule checks.
+
+---
+
 [← Architecture](01-architecture.md) | [Next: Testing Strategy →](03-testing.md)

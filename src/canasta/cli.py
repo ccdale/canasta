@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import argparse
+
+from canasta.bots import BotKind, TurnBot, build_bot, play_bot_turn
 from canasta.engine import CanastaEngine, RuleError
 from canasta.model import PlayerId, hand_labels
 from canasta.rules import discard_pile_is_frozen
@@ -53,12 +56,52 @@ def _render_state(engine: CanastaEngine) -> str:
     )
 
 
-def main() -> int:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Canasta CLI")
+    parser.add_argument(
+        "--north", choices=["human", "random", "greedy"], default="human"
+    )
+    parser.add_argument(
+        "--south", choices=["human", "random", "greedy"], default="human"
+    )
+    parser.add_argument("--bot-seed", type=int, default=0)
+    return parser.parse_args(argv)
+
+
+def _build_controllers(args: argparse.Namespace) -> dict[PlayerId, TurnBot | None]:
+    controllers: dict[PlayerId, TurnBot | None] = {
+        PlayerId.NORTH: None,
+        PlayerId.SOUTH: None,
+    }
+    if args.north != "human":
+        controllers[PlayerId.NORTH] = build_bot(args.north, seed=args.bot_seed + 1)
+    if args.south != "human":
+        controllers[PlayerId.SOUTH] = build_bot(args.south, seed=args.bot_seed + 2)
+    return controllers
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
     engine = CanastaEngine()
+    controllers = _build_controllers(args)
+
     print("Canasta CLI")
     print(HELP_TEXT)
+    print(f"Controllers: north={args.north} south={args.south}")
 
     while True:
+        current = engine.state.current_player
+        controller = controllers[current]
+        if engine.state.winner is None and controller is not None:
+            try:
+                actions = play_bot_turn(engine, controller)
+            except RuleError as exc:
+                print(f"[{current.value}:{controller.name}] error: {exc}")
+                return 1
+            for action in actions:
+                print(f"[{current.value}:{controller.name}] {action}")
+            continue
+
         raw = input("> ").strip()
         if not raw:
             continue

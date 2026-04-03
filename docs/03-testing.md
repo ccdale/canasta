@@ -23,13 +23,14 @@ uv run pytest tests/ -v
 
 ## Structure
 
-Three test files mirror the three testable source modules:
+Four test files mirror the testable source modules:
 
 | Test file | Source module | What is tested |
 |-----------|--------------|----------------|
 | `tests/test_model.py` | `canasta/model.py` | Card properties, Meld computed properties, deck construction |
 | `tests/test_rules.py` | `canasta/rules.py` | Meld validation, add-to-meld, discard restrictions, scoring |
 | `tests/test_engine.py` | `canasta/engine.py` | Engine initialisation, turn flow, error paths |
+| `tests/test_bots.py` | `canasta/bots.py` | Bot construction and legal turn-play behavior |
 
 `cli.py` has no dedicated test file yet; it is covered by the smoke-test described below.
 
@@ -109,7 +110,7 @@ def test_cards_returned_to_hand_on_failure(self):
 
 ---
 
-## Coverage summary (124 tests)
+## Coverage summary (129 tests)
 
 | Area | Tests | What they verify |
 |------|-------|-----------------|
@@ -135,6 +136,7 @@ def test_cards_returned_to_hand_on_failure(self):
 | Red threes (engine) | 9 | auto-meld at init, hand size preserved, mid-turn trigger, message, `red_three_score` (1/2/4), score integration |
 | Winner detection | 3 | winner set only when hand empties with a canasta; winning discard keeps turn on winner |
 | Multi-round lifecycle | 6 | initial round number, next-round gate, actions blocked after winner, score banking, round reset, winner starts next round |
+| Bot behavior | 5 | bot factory wiring, random legal turn completion, greedy opening meld preference, legal discard behavior |
 
 ---
 
@@ -162,6 +164,12 @@ Expected output includes the dealt hand, stock/discard sizes, and a clean exit �
 - ~~Discard pile freeze~~ ✓ now covered
 - ~~Hand-card penalties~~ ✓ now covered
 - ~~Multi-round scoring~~ ✓ now covered
+
+---
+
+## Bot determinism
+
+Bot behavior can be seeded through CLI `--bot-seed`, and tests use deterministic setup for reproducibility.
 
 ---
 

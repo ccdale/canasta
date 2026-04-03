@@ -13,6 +13,7 @@ The codebase is divided into four strictly-layered modules:
 model.py   ← pure data structures (no logic)
 rules.py   ← pure functions over data (no state)
 engine.py  ← stateful orchestration (uses rules)
+bots.py    ← pluggable turn strategies (random/greedy)
 cli.py     ← I/O and command parsing (uses engine)
 ```
 
@@ -130,6 +131,25 @@ Implements a REPL loop reading from stdin. Supported commands:
 
 All `RuleError` exceptions are caught and printed as plain messages; the game continues.
 
+`cli.py` also supports per-seat controller selection:
+
+- `--north human|random|greedy`
+- `--south human|random|greedy`
+- `--bot-seed <int>` for deterministic random bot behavior
+
+When the current player is bot-controlled, the CLI auto-plays that full turn via `play_bot_turn` from `bots.py`.
+
+### `bots.py` — AI turn strategies
+
+Defines a small strategy protocol plus concrete bot types:
+
+| Bot | Behavior |
+|-----|----------|
+| `RandomBot` | Chooses legal meld/discard actions stochastically using a seeded RNG. |
+| `GreedyBot` | Prioritizes highest immediate meld value and lowest-point legal discard. |
+
+`build_bot(kind, seed)` instantiates bot implementations and `play_bot_turn(engine, bot)` executes one full legal turn (`draw` → meld attempts → `discard`).
+
 ---
 
 ## What is not yet implemented
@@ -140,7 +160,7 @@ All `RuleError` exceptions are caught and printed as plain messages; the game co
 - ~~Discard pile freeze / unfreeze~~ ✓ done
 - ~~Hand-card penalties at round end~~ ✓ done
 - ~~Multi-round / cumulative scoring~~ ✓ done
-- AI player
+- ~~AI player~~ ✓ done (`random`, `greedy`)
 - Persistence / save-load
 
 ---
