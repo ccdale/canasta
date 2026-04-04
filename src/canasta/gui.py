@@ -154,8 +154,7 @@ def main(argv: list[str] | None = None) -> int:
 
         gi.require_version("Gdk", "4.0")
         gi.require_version("Gtk", "4.0")
-        gi.require_version("GdkPixbuf", "2.0")
-        from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
+        from gi.repository import Gdk, Gio, GLib, Gtk
     except ModuleNotFoundError:
         exit_code = _reexec_with_system_python(argv or sys.argv[1:])
         if exit_code is not None:
@@ -178,20 +177,23 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     def _build_card_picture(image_path: Path) -> Gtk.Widget:
-        # Pre-scale so the widget reports CARD_W×CARD_H as natural size.
-        try:
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                str(image_path), CARD_W, CARD_H, False
-            )
-            image = Gtk.Image.new_from_pixbuf(pixbuf)
-        except Exception:
-            image = Gtk.Image()
-        image.set_size_request(CARD_W, CARD_H)
-        image.set_halign(Gtk.Align.START)
-        image.set_valign(Gtk.Align.START)
-        image.set_hexpand(False)
-        image.set_vexpand(False)
-        return image
+        picture = Gtk.Picture.new_for_filename(str(image_path))
+        picture.set_content_fit(Gtk.ContentFit.FILL)
+        picture.set_can_shrink(True)
+        picture.set_size_request(CARD_W, CARD_H)
+        picture.set_halign(Gtk.Align.FILL)
+        picture.set_valign(Gtk.Align.FILL)
+        picture.set_hexpand(True)
+        picture.set_vexpand(True)
+
+        wrapper = Gtk.Box()
+        wrapper.set_size_request(CARD_W, CARD_H)
+        wrapper.set_halign(Gtk.Align.START)
+        wrapper.set_valign(Gtk.Align.START)
+        wrapper.set_hexpand(False)
+        wrapper.set_vexpand(False)
+        wrapper.append(picture)
+        return wrapper
 
     def _build_card_widget(card: Card, assets_root: Path) -> Gtk.Widget:
         path = card_image_path(card, assets_root)
