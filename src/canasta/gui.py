@@ -178,9 +178,12 @@ def main(argv: list[str] | None = None) -> int:
 
     def _build_card_picture(image_path: Path) -> Gtk.Widget:
         picture = Gtk.Picture.new_for_filename(str(image_path))
+        picture.set_size_request(CARD_W, CARD_H)
         picture.set_content_fit(Gtk.ContentFit.FILL)
-        picture.set_hexpand(True)
-        picture.set_vexpand(True)
+        picture.set_halign(Gtk.Align.START)
+        picture.set_valign(Gtk.Align.START)
+        picture.set_hexpand(False)
+        picture.set_vexpand(False)
 
         # Keep card widgets at a deterministic natural size even inside
         # Gtk.ToggleButton containers used by the hand fan.
@@ -267,12 +270,18 @@ def main(argv: list[str] | None = None) -> int:
             # ── Row 2: Stock and discard (own row — nothing tall beside them) ──
             pile_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
             pile_row.set_margin_start(6)
+            pile_row.set_valign(Gtk.Align.START)
+            pile_row.set_vexpand(False)
             root.append(pile_row)
 
             self.stock_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            self.stock_box.set_valign(Gtk.Align.START)
+            self.stock_box.set_vexpand(False)
             pile_row.append(self.stock_box)
 
             self.discard_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            self.discard_box.set_valign(Gtk.Align.START)
+            self.discard_box.set_vexpand(False)
             pile_row.append(self.discard_box)
 
             # ── Row 3: Controls ───────────────────────────────────────────
