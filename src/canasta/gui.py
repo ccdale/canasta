@@ -19,6 +19,7 @@ CARD_W = 71
 CARD_H = 100
 CARD_PEEK = 22  # pixels of left edge visible per card in the fan layout
 CARD_LIFT = 10  # pixels a selected card is raised above the row
+MELD_PEEK = 18  # tighter fan so meld groups consume less horizontal space
 
 _BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner"]
 
@@ -41,6 +42,11 @@ _TABLE_CSS = """
     padding: 2px;
     min-width: 0;
     min-height: 0;
+}
+.canasta-card-shell {
+    border: 2px solid #d4af37;
+    border-radius: 8px;
+    padding: 2px;
 }
 """
 
@@ -206,6 +212,17 @@ def main(argv: list[str] | None = None) -> int:
         label.set_wrap(True)
         fallback.append(label)
         return fallback
+
+    def _build_fanned_cards(
+        cards: list[Card], assets_root: Path, peek: int = MELD_PEEK
+    ) -> Gtk.Widget:
+        fan = Gtk.Fixed()
+        n_cards = len(cards)
+        total_w = max(CARD_W, (n_cards - 1) * peek + CARD_W) if n_cards else CARD_W
+        fan.set_size_request(total_w, CARD_H + 4)
+        for idx, card in enumerate(cards):
+            fan.put(_build_card_widget(card, assets_root), idx * peek, 2)
+        return fan
 
     def _build_pile_picture(image_path: Path) -> Gtk.Widget:
         # Stock/discard must stay fixed-size regardless of parent row allocation.
@@ -704,15 +721,28 @@ def main(argv: list[str] | None = None) -> int:
                 for idx, meld in enumerate(player.melds):
                     if player_id == viewer:
                         self.meld_model.append(f"Meld {idx}")
-                    frame = Gtk.Frame(label=f"Meld {idx}")
-                    row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-                    row.set_margin_top(4)
-                    row.set_margin_bottom(4)
-                    row.set_margin_start(4)
-                    row.set_margin_end(4)
-                    for card in meld.cards:
-                        row.append(_build_card_widget(card, self.assets_root))
-                    frame.set_child(row)
+                    title = f"Meld {idx}"
+                    if meld.is_canasta:
+                        title += " (Canasta)"
+                    frame = Gtk.Frame(label=title)
+                    if meld.is_canasta and meld.cards:
+                        shell = Gtk.Box()
+                        shell.add_css_class("canasta-card-shell")
+                        shell.set_margin_top(4)
+                        shell.set_margin_bottom(4)
+                        shell.set_margin_start(4)
+                        shell.set_margin_end(4)
+                        shell.append(
+                            _build_card_widget(meld.cards[-1], self.assets_root)
+                        )
+                        frame.set_child(shell)
+                    else:
+                        fan = _build_fanned_cards(meld.cards, self.assets_root)
+                        fan.set_margin_top(4)
+                        fan.set_margin_bottom(4)
+                        fan.set_margin_start(4)
+                        fan.set_margin_end(4)
+                        frame.set_child(fan)
                     melds_box.append(frame)
 
             if (
