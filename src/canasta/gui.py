@@ -154,7 +154,8 @@ def main(argv: list[str] | None = None) -> int:
 
         gi.require_version("Gdk", "4.0")
         gi.require_version("Gtk", "4.0")
-        from gi.repository import Gdk, Gio, GLib, Gtk
+        gi.require_version("GdkPixbuf", "2.0")
+        from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
     except ModuleNotFoundError:
         exit_code = _reexec_with_system_python(argv or sys.argv[1:])
         if exit_code is not None:
@@ -205,6 +206,22 @@ def main(argv: list[str] | None = None) -> int:
         label.set_wrap(True)
         fallback.append(label)
         return fallback
+
+    def _build_pile_picture(image_path: Path) -> Gtk.Widget:
+        # Stock/discard must stay fixed-size regardless of parent row allocation.
+        try:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+                str(image_path), CARD_W, CARD_H, False
+            )
+            image = Gtk.Image.new_from_pixbuf(pixbuf)
+        except Exception:
+            image = Gtk.Image()
+        image.set_size_request(CARD_W, CARD_H)
+        image.set_halign(Gtk.Align.START)
+        image.set_valign(Gtk.Align.START)
+        image.set_hexpand(False)
+        image.set_vexpand(False)
+        return image
 
     def _build_controllers(args: argparse.Namespace) -> dict[PlayerId, TurnBot | None]:
         controllers: dict[PlayerId, TurnBot | None] = {
@@ -604,7 +621,7 @@ def main(argv: list[str] | None = None) -> int:
             self.stock_box.append(stock_title)
             back_path = back_image_path(self.assets_root)
             if back_path is not None:
-                self.stock_box.append(_build_card_picture(back_path))
+                self.stock_box.append(_build_pile_picture(back_path))
             else:
                 self.stock_box.append(Gtk.Label(label="[stock]"))
 
@@ -617,9 +634,13 @@ def main(argv: list[str] | None = None) -> int:
             self.discard_box.append(discard_title)
             if state.discard:
                 top_discard = state.discard[-1]
-                self.discard_box.append(
-                    _build_card_widget(top_discard, self.assets_root)
-                )
+                top_discard_path = card_image_path(top_discard, self.assets_root)
+                if top_discard_path is not None:
+                    self.discard_box.append(_build_pile_picture(top_discard_path))
+                else:
+                    self.discard_box.append(
+                        _build_card_widget(top_discard, self.assets_root)
+                    )
             else:
                 self.discard_box.append(Gtk.Label(label="(empty)"))
 
