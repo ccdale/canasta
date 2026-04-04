@@ -213,15 +213,18 @@ def main(argv: list[str] | None = None) -> int:
             pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
                 str(image_path), CARD_W, CARD_H, False
             )
-            image = Gtk.Image.new_from_pixbuf(pixbuf)
+            texture = Gdk.Texture.new_for_pixbuf(pixbuf)
+            picture = Gtk.Picture.new_for_paintable(texture)
         except Exception:
-            image = Gtk.Image()
-        image.set_size_request(CARD_W, CARD_H)
-        image.set_halign(Gtk.Align.START)
-        image.set_valign(Gtk.Align.START)
-        image.set_hexpand(False)
-        image.set_vexpand(False)
-        return image
+            picture = Gtk.Picture()
+        picture.set_content_fit(Gtk.ContentFit.FILL)
+        picture.set_can_shrink(True)
+        picture.set_size_request(CARD_W, CARD_H)
+        picture.set_halign(Gtk.Align.START)
+        picture.set_valign(Gtk.Align.START)
+        picture.set_hexpand(False)
+        picture.set_vexpand(False)
+        return picture
 
     def _build_controllers(args: argparse.Namespace) -> dict[PlayerId, TurnBot | None]:
         controllers: dict[PlayerId, TurnBot | None] = {
