@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 from canasta.bot_strategies import TurnBot
@@ -42,6 +43,10 @@ _TABLE_CSS = """
     padding: 2px;
     min-width: 0;
     min-height: 0;
+}
+.draw-preview-new {
+    border: 2px solid #f4b400;
+    border-radius: 8px;
 }
 .canasta-card-shell {
     border: 2px solid #d4af37;
@@ -150,6 +155,23 @@ def _resolve_target_meld_index(melds: list[Meld], cards: list[Card]) -> int | No
     if len(matching_indexes) > 1:
         raise RuleError(f"multiple melds found for rank {target_rank}")
     return matching_indexes[0]
+
+
+def _card_key(card: Card) -> tuple[str, str | None]:
+    return (card.rank, card.suit)
+
+
+def _new_cards_in_hand(before: list[Card], after: list[Card]) -> list[Card]:
+    """Return net-added cards between two hand snapshots."""
+    before_counts = Counter(_card_key(card) for card in before)
+    added: list[Card] = []
+    for card in after:
+        key = _card_key(card)
+        if before_counts[key] > 0:
+            before_counts[key] -= 1
+            continue
+        added.append(card)
+    return added
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -272,6 +294,10 @@ def main(argv: list[str] | None = None) -> int:
             self._bot_indicator_actor: PlayerId | None = None
             self._bot_indicator_name: str = ""
             self._bot_indicator_step = 0
+            self._draw_preview_timeout_id: int | None = None
+            self._draw_preview_base_hand: list[Card] | None = None
+            self._draw_preview_inserted_cards: list[Card] | None = None
+            self._draw_preview_restore_scroll: float | None = None
             self.assets_root = (
                 Path(args.assets_dir).expanduser() if args.assets_dir else asset_dir()
             )
@@ -387,6 +413,7 @@ def main(argv: list[str] | None = None) -> int:
             hand_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
             hand_scroll.set_min_content_height(CARD_H + CARD_LIFT + 8)
             root.append(hand_scroll)
+            self.hand_scroll = hand_scroll
             self.hand_fixed = Gtk.Fixed()
             hand_scroll.set_child(self.hand_fixed)
 
@@ -420,6 +447,25 @@ def main(argv: list[str] | None = None) -> int:
                 GLib.source_remove(self._bot_timeout_id)
                 self._bot_timeout_id = None
             self._stop_bot_indicator()
+
+        def _cancel_draw_preview(self) -> None:
+            if self._draw_preview_timeout_id is not None:
+                GLib.source_remove(self._draw_preview_timeout_id)
+                self._draw_preview_timeout_id = None
+            self._draw_preview_base_hand = None
+            self._draw_preview_inserted_cards = None
+            self._draw_preview_restore_scroll = None
+
+        def _clear_draw_preview(self) -> bool:
+            self._draw_preview_timeout_id = None
+            self._draw_preview_base_hand = None
+            self._draw_preview_inserted_cards = None
+            if self._draw_preview_restore_scroll is not None:
+                hadj = self.hand_scroll.get_hadjustment()
+                hadj.set_value(self._draw_preview_restore_scroll)
+                self._draw_preview_restore_scroll = None
+            self._refresh()
+            return False
 
         def _start_bot_indicator(self, actor: PlayerId, name: str) -> None:
             self._stop_bot_indicator()
@@ -492,6 +538,7 @@ def main(argv: list[str] | None = None) -> int:
 
         def _reset_game(self, north: str, south: str, bot_seed: int) -> None:
             self._cancel_bot_timer()
+            self._cancel_draw_preview()
             self._north = north
             self._south = south
             self._bot_seed = bot_seed
@@ -674,6 +721,48 @@ def main(argv: list[str] | None = None) -> int:
         def _refresh_hand(self) -> None:
             self._clear_box(self.hand_fixed)
             current = self.engine.state.players[self._viewer_player_id()]
+            preview_active = (
+                self._draw_preview_base_hand is not None
+                and self._draw_preview_inserted_cards is not None
+            )
+
+            if preview_active:
+                base_hand = self._draw_preview_base_hand or []
+                inserted_cards = self._draw_preview_inserted_cards or []
+                base_w = (
+                    max(CARD_W, (len(base_hand) - 1) * CARD_PEEK + CARD_W)
+                    if base_hand
+                    else 0
+                )
+                inserted_gap = 12 if base_hand and inserted_cards else 0
+                inserted_stride = CARD_W + 8
+                inserted_w = (
+                    (len(inserted_cards) - 1) * inserted_stride + CARD_W
+                    if inserted_cards
+                    else 0
+                )
+                total_w = max(CARD_W, base_w + inserted_gap + inserted_w)
+                self.hand_fixed.set_size_request(total_w, CARD_H + CARD_LIFT + 8)
+
+                for idx, card in enumerate(base_hand):
+                    shell = Gtk.Box()
+                    shell.add_css_class("hand-card")
+                    shell.append(_build_card_widget(card, self.assets_root))
+                    x = idx * CARD_PEEK
+                    y = CARD_LIFT
+                    self.hand_fixed.put(shell, x, y)
+
+                start_x = base_w + inserted_gap
+                for idx, card in enumerate(inserted_cards):
+                    shell = Gtk.Box()
+                    shell.add_css_class("hand-card")
+                    shell.add_css_class("draw-preview-new")
+                    shell.append(_build_card_widget(card, self.assets_root))
+                    x = start_x + idx * inserted_stride
+                    y = 0
+                    self.hand_fixed.put(shell, x, y)
+                return
+
             hand = current.hand
             n = len(hand)
             total_w = max(CARD_W, (n - 1) * CARD_PEEK + CARD_W) if n else CARD_W
@@ -682,6 +771,7 @@ def main(argv: list[str] | None = None) -> int:
                 button = Gtk.ToggleButton()
                 button.add_css_class("hand-card")
                 button.set_active(idx in self.selected_hand_indexes)
+                button.set_sensitive(True)
                 button.set_child(_build_card_widget(card, self.assets_root))
                 button.connect("toggled", self._on_hand_toggled, idx)
                 x = idx * CARD_PEEK
@@ -756,25 +846,31 @@ def main(argv: list[str] | None = None) -> int:
             selected = self._selected_indexes()
             viewer = state.players[self._viewer_player_id()]
             is_human_turn = self.controllers.get(state.current_player) is None
+            preview_active = self._draw_preview_inserted_cards is not None
             has_current_melds = bool(viewer.melds)
             selected_cards = [
                 viewer.hand[idx] for idx in selected if idx < len(viewer.hand)
             ]
             needs_meld_selector = any(card.is_wild() for card in selected_cards)
             self.draw_button.set_sensitive(
-                state.winner is None and is_human_turn and not state.turn_drawn
+                state.winner is None
+                and is_human_turn
+                and not state.turn_drawn
+                and not preview_active
             )
             self.pickup_button.set_sensitive(
                 state.winner is None
                 and is_human_turn
                 and not state.turn_drawn
                 and bool(selected)
+                and not preview_active
             )
             self.meld_button.set_sensitive(
                 state.winner is None
                 and is_human_turn
                 and state.turn_drawn
                 and bool(selected)
+                and not preview_active
             )
             self.add_button.set_sensitive(
                 state.winner is None
@@ -782,16 +878,21 @@ def main(argv: list[str] | None = None) -> int:
                 and state.turn_drawn
                 and bool(selected)
                 and has_current_melds
+                and not preview_active
             )
             self.discard_button.set_sensitive(
                 state.winner is None
                 and is_human_turn
                 and state.turn_drawn
                 and len(selected) == 1
+                and not preview_active
             )
             self.next_round_button.set_sensitive(state.winner is not None)
             self.meld_selector.set_sensitive(
-                is_human_turn and has_current_melds and needs_meld_selector
+                is_human_turn
+                and has_current_melds
+                and needs_meld_selector
+                and not preview_active
             )
 
         def _refresh(self) -> None:
@@ -801,6 +902,7 @@ def main(argv: list[str] | None = None) -> int:
             self._refresh_controls()
 
         def _run_action(self, callback) -> None:
+            self._cancel_draw_preview()
             try:
                 result = callback()
                 self.selected_hand_indexes.clear()
@@ -819,7 +921,35 @@ def main(argv: list[str] | None = None) -> int:
             self._refresh_controls()
 
         def _on_draw(self, _button: Gtk.Button) -> None:
-            self._run_action(self.engine.draw_stock)
+            self._cancel_draw_preview()
+            before_hand = list(self.engine.current_hand())
+            try:
+                result = self.engine.draw_stock()
+                self.selected_hand_indexes.clear()
+                self._set_status(result.message)
+            except RuleError as exc:
+                self._set_status(f"error: {exc}")
+                self._refresh()
+                self._maybe_play_bot_turn()
+                return
+
+            after_hand = list(self.engine.current_hand())
+            inserted = _new_cards_in_hand(before_hand, after_hand)
+            if inserted:
+                # Show newly inserted cards at draw/pickup position briefly.
+                self._draw_preview_base_hand = before_hand
+                self._draw_preview_inserted_cards = inserted
+                hadj = self.hand_scroll.get_hadjustment()
+                self._draw_preview_restore_scroll = hadj.get_value()
+                self._draw_preview_timeout_id = GLib.timeout_add(
+                    1000, self._clear_draw_preview
+                )
+
+            self._refresh()
+            if inserted:
+                hadj = self.hand_scroll.get_hadjustment()
+                hadj.set_value(max(0.0, hadj.get_upper() - hadj.get_page_size()))
+            self._maybe_play_bot_turn()
 
         def _on_pickup(self, _button: Gtk.Button) -> None:
             indexes = self._selected_indexes()
