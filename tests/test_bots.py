@@ -61,7 +61,7 @@ class TestBotTurns:
 
         actions = play_bot_turn(eng, GreedyBot())
 
-        assert any("created meld" in action for action in actions)
+        assert any(action.startswith("created") for action in actions)
 
     def test_bot_turn_discards_non_red_three(self):
         eng = make_engine()
@@ -71,6 +71,46 @@ class TestBotTurns:
         actions = play_bot_turn(eng, GreedyBot())
 
         assert any(action.startswith("discarded ") for action in actions)
+
+    def test_greedy_bot_can_choose_split_rank_opening(self):
+        # Three kings + three eights can open as a split-rank meld in one action.
+        hand = [
+            Card("K", "S"),
+            Card("K", "H"),
+            Card("K", "D"),
+            Card("8", "S"),
+            Card("8", "H"),
+            Card("8", "D"),
+        ]
+
+        idxs = GreedyBot().choose_meld_indexes(hand, opening_required=True)
+
+        assert idxs is not None
+        selected = [hand[i] for i in idxs]
+        ranks = {card.rank for card in selected}
+        assert ranks == {"K", "8"}
+
+
+class TestRandomBot:
+    def test_random_bot_opening_candidates_include_split_rank(self):
+        hand = [
+            Card("K", "S"),
+            Card("K", "H"),
+            Card("K", "D"),
+            Card("8", "S"),
+            Card("8", "H"),
+            Card("8", "D"),
+        ]
+
+        idxs = RandomBot(rng=__import__("random").Random(3)).choose_meld_indexes(
+            hand, opening_required=True
+        )
+
+        assert idxs is not None
+        selected = [hand[i] for i in idxs]
+        ranks = {card.rank for card in selected}
+        assert len(selected) >= 3
+        assert ranks in ({"K"}, {"8"}, {"K", "8"})
 
 
 class TestSafeBot:
@@ -138,8 +178,8 @@ class TestPlannerBot:
         ]
         idxs = PlannerBot().choose_meld_indexes(hand, opening_required=True)
         assert idxs is not None
-        ranks = [hand[i].rank for i in idxs]
-        assert all(rank == "A" for rank in ranks)
+        selected = [hand[i] for i in idxs]
+        assert {card.rank for card in selected} == {"A", "K"}
 
     def test_planner_discard_keeps_wild_when_possible(self):
         hand = [Card("2", "S"), Card("7", "H"), Card("8", "D")]

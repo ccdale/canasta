@@ -1,6 +1,6 @@
 # 03 — Testing Strategy
 
-[← Game Rules & Data Model](02-game-rules-and-model.md) | [↑ Index](index.md)
+[← Game Rules & Data Model](02-game-rules-and-model.md) | [Next: AI Player Behavior and Seed Effects →](04-ai-player-and-seeding.md) | [↑ Index](index.md)
 
 ---
 
@@ -174,4 +174,4 @@ Bot behavior can be seeded through CLI `--bot-seed`, and tests use deterministic
 
 ---
 
-[← Game Rules & Data Model](02-game-rules-and-model.md) | [↑ Index](index.md)
+[← Game Rules & Data Model](02-game-rules-and-model.md) | [Next: AI Player Behavior and Seed Effects →](04-ai-player-and-seeding.md) | [↑ Index](index.md)

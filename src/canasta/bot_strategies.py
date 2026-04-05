@@ -200,17 +200,76 @@ def _eligible_natural_meld_candidates(
         by_rank.setdefault(card.rank, []).append(idx)
 
     candidates: list[list[int]] = []
+    rank_candidates: list[list[list[int]]] = []
     for indexes in by_rank.values():
         if len(indexes) < 3:
             continue
+        per_rank: list[list[int]] = []
         for size in range(3, len(indexes) + 1):
             candidate = indexes[:size]
-            if opening_required:
-                points = opening_meld_value([hand[i] for i in candidate])
-                if points < OPENING_MELD_MINIMUM:
-                    continue
-            candidates.append(candidate)
+            if not opening_required:
+                candidates.append(candidate)
+                continue
+
+            points = opening_meld_value([hand[i] for i in candidate])
+            if points >= OPENING_MELD_MINIMUM:
+                candidates.append(candidate)
+            per_rank.append(candidate)
+
+        if opening_required and per_rank:
+            rank_candidates.append(per_rank)
+
+    if opening_required:
+        # Opening meld may be split across multiple natural ranks in one action.
+        split_candidates = _opening_split_candidates(hand, rank_candidates)
+        candidates.extend(split_candidates)
+
     return candidates
+
+
+def _opening_split_candidates(
+    hand: list[Card], rank_candidates: list[list[list[int]]]
+) -> list[list[int]]:
+    """Build opening meld candidates that combine multiple natural ranks."""
+    if len(rank_candidates) < 2:
+        return []
+
+    results: list[list[int]] = []
+    seen: set[tuple[int, ...]] = set()
+
+    def add_candidate(indexes: list[int]) -> None:
+        if len(indexes) < 6:
+            return
+        points = opening_meld_value([hand[i] for i in indexes])
+        if points < OPENING_MELD_MINIMUM:
+            return
+        key = tuple(sorted(indexes))
+        if key in seen:
+            return
+        seen.add(key)
+        results.append(indexes)
+
+    def walk(rank_idx: int, selected: list[list[int]]) -> None:
+        if rank_idx == len(rank_candidates):
+            if len(selected) < 2:
+                return
+            merged: list[int] = []
+            for group in selected:
+                merged.extend(group)
+            add_candidate(merged)
+            return
+
+        # Skip this rank.
+        walk(rank_idx + 1, selected)
+
+        # Include one candidate size from this rank.
+        for candidate in rank_candidates[rank_idx]:
+            selected.append(candidate)
+            walk(rank_idx + 1, selected)
+            selected.pop()
+
+    walk(0, [])
+    return results
 
 
 def _natural_density(cards: list[Card]) -> int:
