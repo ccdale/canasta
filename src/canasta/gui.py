@@ -374,6 +374,10 @@ def main(argv: list[str] | None = None) -> int:
             self.discard_button.connect("clicked", self._on_discard)
             controls_row.append(self.discard_button)
 
+            self.deselect_all_button = Gtk.Button(label="Deselect All")
+            self.deselect_all_button.connect("clicked", self._on_deselect_all)
+            controls_row.append(self.deselect_all_button)
+
             self.next_round_button = Gtk.Button(label="Next Round")
             self.next_round_button.connect("clicked", self._on_next_round)
             controls_row.append(self.next_round_button)
@@ -887,6 +891,7 @@ def main(argv: list[str] | None = None) -> int:
                 and len(selected) == 1
                 and not preview_active
             )
+            self.deselect_all_button.set_sensitive(len(selected) > 1)
             self.next_round_button.set_sensitive(state.winner is not None)
             self.meld_selector.set_sensitive(
                 is_human_turn
@@ -917,6 +922,12 @@ def main(argv: list[str] | None = None) -> int:
                 self.selected_hand_indexes.add(index)
             else:
                 self.selected_hand_indexes.discard(index)
+            self._refresh_summary()
+            self._refresh_controls()
+
+        def _on_deselect_all(self, _button: Gtk.Button) -> None:
+            self.selected_hand_indexes.clear()
+            self._refresh_hand()
             self._refresh_summary()
             self._refresh_controls()
 
