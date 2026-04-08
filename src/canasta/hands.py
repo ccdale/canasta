@@ -1,6 +1,7 @@
 """Hand utilities for card manipulation."""
 
-from canasta.model import RANKS, SUITS, Card, RuleError
+from canasta.model import SUITS, Card, RuleError
+from canasta.rules import CARD_POINTS
 
 
 def pop_cards_from_hand(hand: list[Card], indexes: list[int]) -> list[Card]:
@@ -31,22 +32,29 @@ def pop_cards_from_hand(hand: list[Card], indexes: list[int]) -> list[Card]:
 
 
 def sort_hand(hand: list[Card]) -> None:
-    """Sort hand by rank then suit for consistent display.
+    """Sort hand by score then natural rank order for consistent display.
 
-    Sorts in-place using RANKS order (A-K) and SUITS order (S-C),
-    with JOKER and None (wild 2) sorted last.
+    Primary: ascending card point value (threes/low cards on left, wilds on right).
+    Secondary: natural rank order (3–K, A, 2, JOKER) within the same score tier.
+    Tertiary: suit order (S-C) for identical rank.
 
     Args:
         hand: The player's hand list (sorted in-place).
     """
-    rank_order = {rank: idx for idx, rank in enumerate(RANKS)}
-    rank_order["JOKER"] = len(RANKS)
+    # Natural rank order: 3 4 5 6 7 8 9 T J Q K A 2 JOKER
+    natural_rank_order = {
+        rank: idx
+        for idx, rank in enumerate(
+            ("3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A", "2", "JOKER")
+        )
+    }
     suit_order = {suit: idx for idx, suit in enumerate(SUITS)}
     suit_order[None] = len(SUITS)
 
     hand.sort(
         key=lambda card: (
-            rank_order.get(card.rank, len(RANKS) + 1),
+            CARD_POINTS.get(card.rank, 0),
+            natural_rank_order.get(card.rank, len(natural_rank_order)),
             suit_order.get(card.suit, len(SUITS) + 1),
         )
     )

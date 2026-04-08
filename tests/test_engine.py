@@ -3,11 +3,16 @@
 import pytest
 
 from canasta.engine import CanastaEngine, RuleError
-from canasta.model import RANKS, SUITS, Card, Meld, PlayerId
+from canasta.model import SUITS, Card, Meld, PlayerId
+from canasta.rules import CARD_POINTS
 
 SEED = 42  # fixed for determinism
-RANK_ORDER = {rank: idx for idx, rank in enumerate(RANKS)}
-RANK_ORDER["JOKER"] = len(RANKS)
+NATURAL_RANK_ORDER = {
+    rank: idx
+    for idx, rank in enumerate(
+        ("3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A", "2", "JOKER")
+    )
+}
 SUIT_ORDER = {suit: idx for idx, suit in enumerate(SUITS)}
 SUIT_ORDER[None] = len(SUITS)
 
@@ -19,7 +24,8 @@ def make_engine() -> CanastaEngine:
 def _is_hand_sorted(hand: list[Card]) -> bool:
     keys = [
         (
-            RANK_ORDER.get(card.rank, len(RANKS) + 1),
+            CARD_POINTS.get(card.rank, 0),
+            NATURAL_RANK_ORDER.get(card.rank, len(NATURAL_RANK_ORDER)),
             SUIT_ORDER.get(card.suit, len(SUITS) + 1),
         )
         for card in hand
