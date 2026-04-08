@@ -127,9 +127,11 @@ class CanastaEngine:
         pile = list(self.state.discard)
         for group in meld_groups:
             rank = next((c.rank for c in group if not c.is_wild()), None)
-            existing = next(
-                (m for m in player.melds if m.natural_rank == rank), None
-            ) if rank else None
+            existing = (
+                next((m for m in player.melds if m.natural_rank == rank), None)
+                if rank
+                else None
+            )
             if existing is not None:
                 existing.cards.extend(group)
             else:
