@@ -367,6 +367,22 @@ class TestPickupDiscard:
 
         assert "picked up" in result.message
 
+    def test_pickup_extends_existing_meld_for_same_rank(self):
+        # Player already has a 7-meld; picking up a 7 from the discard should
+        # extend that meld rather than create a duplicate for the same rank.
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].melds.append(
+            Meld(cards=[Card("7", "S"), Card("7", "H"), Card("7", "C")])
+        )
+        self._set_discard(eng, [Card("7", "D")])
+        self._inject_hand(eng, [Card("7", "C"), Card("7", "H")])
+
+        eng.pickup_discard([0, 1])
+
+        melds = eng.state.players[PlayerId.NORTH].melds
+        assert len(melds) == 1, "should extend existing meld, not create a new one"
+        assert len(melds[0].cards) == 6
+
     def test_pickup_empty_discard_raises(self):
         eng = make_engine()
         eng.state.discard = []

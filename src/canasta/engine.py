@@ -125,7 +125,15 @@ class CanastaEngine:
                 )
 
         pile = list(self.state.discard)
-        player.melds.extend(Meld(cards=group) for group in meld_groups)
+        for group in meld_groups:
+            rank = next((c.rank for c in group if not c.is_wild()), None)
+            existing = next(
+                (m for m in player.melds if m.natural_rank == rank), None
+            ) if rank else None
+            if existing is not None:
+                existing.cards.extend(group)
+            else:
+                player.melds.append(Meld(cards=group))
         self.state.discard.clear()
         player.hand.extend(pile[:-1])
         self.state.turn_drawn = True
