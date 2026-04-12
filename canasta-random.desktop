@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Canasta vs Random
+Comment=Play Canasta against the Random bot
+Path=/home/chris/src/canasta
+Exec=uv run canasta-gui --north random
+Icon=/home/chris/.local/share/canasta/back-random.png
+Terminal=false
+Categories=Game;CardGame;
+StartupNotify=true

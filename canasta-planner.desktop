@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Canasta vs Planner
+Comment=Play Canasta against the Planner bot
+Path=/home/chris/src/canasta
+Exec=uv run canasta-gui --north planner
+Icon=/home/chris/.local/share/canasta/back-planner.png
+Terminal=false
+Categories=Game;CardGame;
+StartupNotify=true
