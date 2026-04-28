@@ -91,3 +91,35 @@ uv run pytest -q
 3. CLI layer that delegates all logic to the engine.
 4. Configurable AI opponents (`random`, `greedy`, `safe`, `aggro`, `planner`) with deterministic seeds.
 5. GTK4 GUI adapter backed by the same engine.
+
+## Features
+
+### Game State Persistence
+
+The GUI automatically saves game state after each action and on startup.
+This allows you to:
+
+- **Resume interrupted games** — Start the app and you'll be prompted to resume or start a new game
+- **Multi-session play** — Close the GUI and return to your game later
+
+Saved game state is stored in `$HOME/.config/canasta/game.json` and includes:
+- All player hands, melds, and red three cards
+- Stock and discard piles  
+- Round number and current player
+- Both players' scores
+
+### Game Statistics
+
+All-time win/loss records are tracked and displayed in the GUI.
+Statistics persist in `$HOME/.config/canasta/stats.json` and survive:
+- Application restarts
+- Multiple games and rounds
+- Different player configurations
+
+The record shows as: `All-time record: North X wins | South Y wins`
+
+### Meld Display Improvements
+
+- **Numerical meld ordering** — Melds are automatically sorted by rank (A through K) for clearer presentation
+- **Wild card positioning** — In canastas with wild cards, the natural card is shown prominently with wild cards fanned on the bottom for easy rank identification
+- **Clear meld structure** — Both natural and incomplete melds display cards in logical order (natural first, wild last)
