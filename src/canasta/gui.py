@@ -174,6 +174,25 @@ def _new_cards_in_hand(before: list[Card], after: list[Card]) -> list[Card]:
     return added
 
 
+def _reorganize_meld_cards(cards: list[Card]) -> list[Card]:
+    """Reorder meld cards: natural cards first, wild cards last."""
+    natural = [card for card in cards if not card.is_wild()]
+    wild = [card for card in cards if card.is_wild()]
+    return natural + wild
+
+
+def _rank_sort_key(rank: str) -> tuple[int, str]:
+    """Return sort key for a rank to sort melds numerically.
+
+    Sorts by index in RANKS tuple (A, 2, 3, ..., K), with non-matching ranks last.
+    """
+    RANKS_TUPLE = ("A", "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K")
+    try:
+        return (RANKS_TUPLE.index(rank), rank)
+    except ValueError:
+        return (len(RANKS_TUPLE), rank)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
@@ -812,26 +831,77 @@ def main(argv: list[str] | None = None) -> int:
                     placeholder.set_valign(Gtk.Align.CENTER)
                     melds_box.append(placeholder)
 
-                for idx, meld in enumerate(player.melds):
+                # Sort melds by natural rank numerically
+                sorted_melds = sorted(
+                    enumerate(player.melds),
+                    key=lambda x: _rank_sort_key(x[1].natural_rank),
+                )
+
+                for original_idx, meld in sorted_melds:
                     if player_id == viewer:
-                        self.meld_model.append(f"Meld {idx}")
-                    title = f"Meld {idx}"
+                        self.meld_model.append(f"Meld {original_idx}")
+                    title = f"Meld {original_idx}"
                     if meld.is_canasta:
                         title += " (Canasta)"
                     frame = Gtk.Frame(label=title)
                     if meld.is_canasta and meld.cards:
-                        shell = Gtk.Box()
-                        shell.add_css_class("canasta-card-shell")
-                        shell.set_margin_top(4)
-                        shell.set_margin_bottom(4)
-                        shell.set_margin_start(4)
-                        shell.set_margin_end(4)
-                        shell.append(
-                            _build_card_widget(meld.cards[-1], self.assets_root)
-                        )
-                        frame.set_child(shell)
+                        # Reorganize cards: natural first, wild last
+                        reorganized = _reorganize_meld_cards(meld.cards)
+                        wild_cards = [c for c in reorganized if c.is_wild()]
+
+                        if wild_cards:
+                            # Show natural cards with wild cards fanned below
+                            layout = Gtk.Fixed()
+                            layout.set_size_request(
+                                CARD_W + (len(wild_cards) - 1) * MELD_PEEK + 20,
+                                CARD_H * 2,
+                            )
+
+                            # Show first natural card (or placeholder)
+                            natural_cards = [c for c in reorganized if not c.is_wild()]
+                            if natural_cards:
+                                layout.put(
+                                    _build_card_widget(
+                                        natural_cards[0], self.assets_root
+                                    ),
+                                    0,
+                                    0,
+                                )
+
+                            # Fan wild cards below and to the right
+                            for wild_idx, wild_card in enumerate(wild_cards):
+                                x = wild_idx * MELD_PEEK
+                                y = CARD_H + 4
+                                layout.put(
+                                    _build_card_widget(wild_card, self.assets_root),
+                                    x,
+                                    y,
+                                )
+
+                            shell = Gtk.Box()
+                            shell.add_css_class("canasta-card-shell")
+                            shell.set_margin_top(4)
+                            shell.set_margin_bottom(4)
+                            shell.set_margin_start(4)
+                            shell.set_margin_end(4)
+                            shell.append(layout)
+                            frame.set_child(shell)
+                        else:
+                            # All natural cards - show first one prominently
+                            shell = Gtk.Box()
+                            shell.add_css_class("canasta-card-shell")
+                            shell.set_margin_top(4)
+                            shell.set_margin_bottom(4)
+                            shell.set_margin_start(4)
+                            shell.set_margin_end(4)
+                            shell.append(
+                                _build_card_widget(reorganized[0], self.assets_root)
+                            )
+                            frame.set_child(shell)
                     else:
-                        fan = _build_fanned_cards(meld.cards, self.assets_root)
+                        # Regular meld: reorganize so natural cards come first
+                        reorganized = _reorganize_meld_cards(meld.cards)
+                        fan = _build_fanned_cards(reorganized, self.assets_root)
                         fan.set_margin_top(4)
                         fan.set_margin_bottom(4)
                         fan.set_margin_start(4)
