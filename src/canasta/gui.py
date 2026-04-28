@@ -193,6 +193,43 @@ def _rank_sort_key(rank: str) -> tuple[int, str]:
         return (len(RANKS_TUPLE), rank)
 
 
+def _get_config_dir() -> Path:
+    """Return the canasta config directory, creating it if needed."""
+    config_dir = Path.home() / ".config" / "canasta"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir
+
+
+def _load_game_stats() -> dict[str, int]:
+    """Load game win/loss statistics from config file.
+
+    Returns dict with keys 'north_wins' and 'south_wins'.
+    """
+    stats_file = _get_config_dir() / "stats.json"
+    if stats_file.exists():
+        try:
+            import json
+
+            with open(stats_file) as f:
+                data = json.load(f)
+                return {
+                    "north_wins": data.get("north_wins", 0),
+                    "south_wins": data.get("south_wins", 0),
+                }
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {"north_wins": 0, "south_wins": 0}
+
+
+def _save_game_stats(north_wins: int, south_wins: int) -> None:
+    """Save game win/loss statistics to config file."""
+    import json
+
+    stats_file = _get_config_dir() / "stats.json"
+    with open(stats_file, "w") as f:
+        json.dump({"north_wins": north_wins, "south_wins": south_wins}, f)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
@@ -311,6 +348,14 @@ def main(argv: list[str] | None = None) -> int:
             self._meld_index_mapping: list[
                 int
             ] = []  # Maps dropdown index to actual meld index
+
+            # Load game statistics
+            stats = _load_game_stats()
+            self.north_wins = stats["north_wins"]
+            self.south_wins = stats["south_wins"]
+            self._last_winner: PlayerId | None = (
+                None  # Track winner to detect new games
+            )
             self._bot_timeout_id: int | None = None
             self._bot_indicator_timeout_id: int | None = None
             self._bot_indicator_actor: PlayerId | None = None
@@ -427,6 +472,11 @@ def main(argv: list[str] | None = None) -> int:
             self.status_label.set_wrap(True)
             self.status_label.set_margin_start(6)
             root.append(self.status_label)
+
+            self.stats_label = Gtk.Label(xalign=0)
+            self.stats_label.set_wrap(True)
+            self.stats_label.set_margin_start(6)
+            root.append(self.stats_label)
 
             root.append(Gtk.Separator())
 
@@ -578,6 +628,8 @@ def main(argv: list[str] | None = None) -> int:
             }
             self.engine = CanastaEngine()
             self.selected_hand_indexes.clear()
+            self._meld_index_mapping = []
+            self._last_winner = None  # Reset winner tracking for new game
             self._set_status(self._initial_status_message())
             self._refresh()
             self._maybe_play_bot_turn()
@@ -665,6 +717,12 @@ def main(argv: list[str] | None = None) -> int:
         def _set_status(self, message: str) -> None:
             self.status_label.set_text(message)
 
+        def _update_stats_display(self) -> None:
+            """Update the displayed game statistics."""
+            self.stats_label.set_text(
+                f"All-time record: North {self.north_wins} wins | South {self.south_wins} wins"
+            )
+
         def _selected_indexes(self) -> list[int]:
             return sorted(self.selected_hand_indexes)
 
@@ -677,6 +735,15 @@ def main(argv: list[str] | None = None) -> int:
 
         def _refresh_summary(self) -> None:
             state = self.engine.state
+
+            # Check if a new winner has been determined
+            if state.winner is not None and state.winner != self._last_winner:
+                self._last_winner = state.winner
+                if state.winner == PlayerId.NORTH:
+                    self.north_wins += 1
+                else:
+                    self.south_wins += 1
+                _save_game_stats(self.north_wins, self.south_wins)
 
             north = state.players[PlayerId.NORTH]
             self.north_melds_hdr.set_text(f"North  ({len(north.hand)} cards in hand)")
@@ -980,6 +1047,7 @@ def main(argv: list[str] | None = None) -> int:
             self._refresh_hand()
             self._refresh_melds()
             self._refresh_controls()
+            self._update_stats_display()
 
         def _run_action(self, callback) -> None:
             self._cancel_draw_preview()
@@ -1076,6 +1144,7 @@ def main(argv: list[str] | None = None) -> int:
             self._run_action(lambda: self.engine.discard(indexes[0]))
 
         def _on_next_round(self, _button: Gtk.Button) -> None:
+            self._last_winner = None  # Reset winner tracking when moving to next round
             self._run_action(self.engine.next_round)
 
     class CanastaApplication(Gtk.Application):
