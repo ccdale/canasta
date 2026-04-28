@@ -200,6 +200,22 @@ def _get_config_dir() -> Path:
     return config_dir
 
 
+def _get_version() -> str:
+    """Get the version string from pyproject.toml."""
+    import tomllib
+
+    project_root = Path(__file__).parent.parent.parent
+    pyproject_path = project_root / "pyproject.toml"
+    if pyproject_path.exists():
+        try:
+            with open(pyproject_path, "rb") as f:
+                data = tomllib.load(f)
+                return data.get("project", {}).get("version", "unknown")
+        except Exception:
+            pass
+    return "unknown"
+
+
 def _load_game_stats() -> dict[str, int]:
     """Load game win/loss statistics from config file.
 
@@ -427,7 +443,7 @@ def main(argv: list[str] | None = None) -> int:
     class CanastaWindow(Gtk.ApplicationWindow):
         def __init__(self, app: Gtk.Application, args: argparse.Namespace) -> None:
             super().__init__(application=app)
-            self.set_title("Canasta")
+            self.set_title(f"Canasta v{_get_version()}")
             self.set_default_size(1280, 900)
             self.add_css_class("table-window")
 
