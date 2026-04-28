@@ -12,7 +12,7 @@ from canasta.bot_strategies import TurnBot
 from canasta.bots import build_bot, play_bot_turn
 from canasta.card_assets import asset_dir, back_image_path, card_image_path
 from canasta.engine import CanastaEngine
-from canasta.model import Card, Meld, PlayerId, RuleError
+from canasta.model import Card, GameState, Meld, PlayerId, PlayerState, RuleError
 from canasta.rules import discard_pile_is_frozen
 
 # Card widget dimensions — proportional to the natural 537×750 px source images.
@@ -228,6 +228,98 @@ def _save_game_stats(north_wins: int, south_wins: int) -> None:
     stats_file = _get_config_dir() / "stats.json"
     with open(stats_file, "w") as f:
         json.dump({"north_wins": north_wins, "south_wins": south_wins}, f)
+
+
+def _game_state_to_dict(state: GameState) -> dict:
+    """Convert GameState to a JSON-serializable dictionary."""
+
+    def card_to_dict(card: Card) -> dict:
+        return {"rank": card.rank, "suit": card.suit}
+
+    def meld_to_dict(meld: Meld) -> dict:
+        return {"cards": [card_to_dict(c) for c in meld.cards]}
+
+    def player_state_to_dict(ps: PlayerState) -> dict:
+        return {
+            "hand": [card_to_dict(c) for c in ps.hand],
+            "melds": [meld_to_dict(m) for m in ps.melds],
+            "red_threes": [card_to_dict(c) for c in ps.red_threes],
+            "score": ps.score,
+        }
+
+    return {
+        "players": {
+            player_id.value: player_state_to_dict(ps)
+            for player_id, ps in state.players.items()
+        },
+        "current_player": state.current_player.value,
+        "stock": [card_to_dict(c) for c in state.stock],
+        "discard": [card_to_dict(c) for c in state.discard],
+        "round_number": state.round_number,
+        "turn_drawn": state.turn_drawn,
+        "winner": state.winner.value if state.winner is not None else None,
+    }
+
+
+def _game_state_from_dict(data: dict) -> GameState:
+    """Reconstruct GameState from a dictionary."""
+
+    def dict_to_card(d: dict) -> Card:
+        return Card(rank=d["rank"], suit=d["suit"])
+
+    def dict_to_meld(d: dict) -> Meld:
+        return Meld(cards=[dict_to_card(c) for c in d["cards"]])
+
+    def dict_to_player_state(d: dict) -> PlayerState:
+        return PlayerState(
+            hand=[dict_to_card(c) for c in d["hand"]],
+            melds=[dict_to_meld(m) for m in d["melds"]],
+            red_threes=[dict_to_card(c) for c in d["red_threes"]],
+            score=d["score"],
+        )
+
+    player_dict = {
+        PlayerId(pid): dict_to_player_state(ps) for pid, ps in data["players"].items()
+    }
+    winner = PlayerId(data["winner"]) if data["winner"] is not None else None
+    return GameState(
+        players=player_dict,
+        current_player=PlayerId(data["current_player"]),
+        stock=[dict_to_card(c) for c in data["stock"]],
+        discard=[dict_to_card(c) for c in data["discard"]],
+        round_number=data["round_number"],
+        turn_drawn=data["turn_drawn"],
+        winner=winner,
+    )
+
+
+def _save_game(state: GameState) -> None:
+    """Save the current game state to a file."""
+    import json
+
+    game_file = _get_config_dir() / "game.json"
+    with open(game_file, "w") as f:
+        json.dump(_game_state_to_dict(state), f)
+
+
+def _load_game() -> GameState | None:
+    """Load a saved game state from file. Returns None if no save exists."""
+    import json
+
+    game_file = _get_config_dir() / "game.json"
+    if game_file.exists():
+        try:
+            with open(game_file) as f:
+                data = json.load(f)
+                return _game_state_from_dict(data)
+        except (json.JSONDecodeError, IOError, KeyError, ValueError):
+            pass
+    return None
+
+
+def _has_saved_game() -> bool:
+    """Check if a saved game exists."""
+    return (_get_config_dir() / "game.json").exists()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -516,6 +608,7 @@ def main(argv: list[str] | None = None) -> int:
 
             self._set_status(self._initial_status_message())
             self._refresh()
+            self._check_saved_game_on_startup()
             self._maybe_play_bot_turn()
 
         def _cancel_bot_timer(self) -> None:
@@ -632,7 +725,68 @@ def main(argv: list[str] | None = None) -> int:
             self._last_winner = None  # Reset winner tracking for new game
             self._set_status(self._initial_status_message())
             self._refresh()
+            # Auto-save newly started game
+            _save_game(self.engine.state)
             self._maybe_play_bot_turn()
+
+        def _load_saved_game(self) -> None:
+            """Load and restore a previously saved game."""
+            saved_state = _load_game()
+            if saved_state is None:
+                self._set_status("error: could not load saved game")
+                return
+
+            self._cancel_bot_timer()
+            self._cancel_draw_preview()
+            # Preserve current controller setup since we don't store it
+            self.engine.state = saved_state
+            self.selected_hand_indexes.clear()
+            self._meld_index_mapping = []
+            self._last_winner = None
+            self._set_status("Game restored from save")
+            self._refresh()
+            self._maybe_play_bot_turn()
+
+        def _check_saved_game_on_startup(self) -> None:
+            """Check for saved game on startup and offer to resume if one exists."""
+            if not _has_saved_game():
+                return
+
+            dialog = Gtk.Window()
+            dialog.set_title("Resume Game?")
+            dialog.set_transient_for(self)
+            dialog.set_modal(True)
+            dialog.set_resizable(False)
+
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+            box.set_margin_top(16)
+            box.set_margin_bottom(16)
+            box.set_margin_start(16)
+            box.set_margin_end(16)
+            dialog.set_child(box)
+
+            label = Gtk.Label(label="A saved game was found. Resume?")
+            label.set_wrap(True)
+            box.append(label)
+
+            btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            btn_row.set_halign(Gtk.Align.END)
+
+            new_btn = Gtk.Button(label="New Game")
+            new_btn.connect(
+                "clicked", lambda _: (dialog.close(), self._show_new_game_dialog(None))
+            )
+            btn_row.append(new_btn)
+
+            resume_btn = Gtk.Button(label="Resume")
+            resume_btn.add_css_class("suggested-action")
+            resume_btn.connect(
+                "clicked", lambda _: (dialog.close(), self._load_saved_game())
+            )
+            btn_row.append(resume_btn)
+
+            box.append(btn_row)
+            dialog.present()
 
         def _show_new_game_dialog(self, _button: Gtk.Button) -> None:
             dialog = Gtk.Window()
@@ -1058,6 +1212,8 @@ def main(argv: list[str] | None = None) -> int:
             except RuleError as exc:
                 self._set_status(f"error: {exc}")
             self._refresh()
+            # Auto-save game state after each action
+            _save_game(self.engine.state)
             self._maybe_play_bot_turn()
 
         def _on_hand_toggled(self, button: Gtk.ToggleButton, index: int) -> None:
