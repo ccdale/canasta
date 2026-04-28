@@ -308,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
             self._bot_seed = args.bot_seed
             self.controllers = _build_controllers(args)
             self.selected_hand_indexes: set[int] = set()
+            self._meld_index_mapping: list[int] = []  # Maps dropdown index to actual meld index
             self._bot_timeout_id: int | None = None
             self._bot_indicator_timeout_id: int | None = None
             self._bot_indicator_actor: PlayerId | None = None
@@ -805,6 +806,7 @@ def main(argv: list[str] | None = None) -> int:
             n_items = self.meld_model.get_n_items()
             if n_items > 0:
                 self.meld_model.splice(0, n_items, [])
+            self._meld_index_mapping = []  # Reset mapping
             viewer = self._viewer_player_id()
             for player_id, melds_box in (
                 (PlayerId.NORTH, self.north_melds_box),
@@ -840,6 +842,7 @@ def main(argv: list[str] | None = None) -> int:
                 for original_idx, meld in sorted_melds:
                     if player_id == viewer:
                         self.meld_model.append(f"Meld {original_idx}")
+                        self._meld_index_mapping.append(original_idx)
                     title = f"Meld {original_idx}"
                     if meld.is_canasta:
                         title += " (Canasta)"
@@ -1052,11 +1055,13 @@ def main(argv: list[str] | None = None) -> int:
                 return
 
             if meld_idx is None:
-                meld_idx = self.meld_selector.get_selected()
-                if meld_idx >= self.meld_model.get_n_items():
+                dropdown_idx = self.meld_selector.get_selected()
+                if dropdown_idx >= len(self._meld_index_mapping):
                     self._set_status("error: select a meld first")
                     self._refresh_controls()
                     return
+                # Map dropdown index to actual meld index
+                meld_idx = self._meld_index_mapping[dropdown_idx]
 
             self._run_action(lambda: self.engine.add_to_meld(meld_idx, indexes))
 
