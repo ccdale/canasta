@@ -308,7 +308,9 @@ def main(argv: list[str] | None = None) -> int:
             self._bot_seed = args.bot_seed
             self.controllers = _build_controllers(args)
             self.selected_hand_indexes: set[int] = set()
-            self._meld_index_mapping: list[int] = []  # Maps dropdown index to actual meld index
+            self._meld_index_mapping: list[
+                int
+            ] = []  # Maps dropdown index to actual meld index
             self._bot_timeout_id: int | None = None
             self._bot_indicator_timeout_id: int | None = None
             self._bot_indicator_actor: PlayerId | None = None
