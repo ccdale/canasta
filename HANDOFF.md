@@ -3,7 +3,7 @@
 ## Current Status
 - Repository: /home/chris/src/canasta
 - Package: canasta
-- Current version: 1.4.5
+- Current version: 1.4.6
 - Python: >=3.12
 - Environment/tooling: uv-managed project
 - CLI entry point: canasta = canasta.cli:main
@@ -88,6 +88,33 @@ Goal: reduce src/canasta/gui/main.py further by extracting rendering and bot aut
 2. Add/update GUI tests for any moved helper behavior where practical.
 3. Extract bot runner second (timer/callback behavior).
 4. Re-run full checks and desktop entry command variants.
+
+### Phase 4 (planned)
+Goal: strengthen bot play toward effectively unbeatable performance for strong human players, while exposing a single, continuous strength control.
+
+#### Strength control requirement
+- Add a bot strength setting from 1-100.
+- Strength 1 should preserve current bot behavior baseline.
+- Strength 100 should target practically unbeatable play.
+- Surface this control in both CLI and GUI:
+  - CLI: add an argument like --bot-strength with range validation.
+  - GUI: add a numeric control (slider or spinbutton) in New Game dialog.
+
+#### Suggested implementation approach
+1. Introduce a unified bot policy layer with tunable decision depth/risk profile.
+2. Map strength bands to behavior:
+   - 1-20: current heuristic behavior with limited lookahead.
+   - 21-60: stronger meld planning, discard safety, freeze-aware pickup logic.
+   - 61-90: deeper lookahead with opponent-model heuristics.
+   - 91-100: highest search depth, strongest pruning/evaluation, conservative error tolerance.
+3. Keep deterministic reproducibility with existing --bot-seed support.
+4. Add telemetry hooks (optional): move quality score, blunder count, average search depth.
+
+#### Validation and acceptance criteria
+- Add automated bot-vs-bot ladder tests across strength bands (higher strength should outperform lower strength over large samples).
+- Add regression tests for existing legal-move/rules behavior so stronger bots do not break correctness.
+- Add performance guardrails so high strength remains responsive in GUI turn timing.
+- Define "unbeatable" operationally as statistically dominant versus current human-like baseline and lower-strength bots, not mathematically perfect play.
 
 ## Validation Commands
 - uv sync
