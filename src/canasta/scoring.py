@@ -1,6 +1,6 @@
 """Scoring helpers for Canasta."""
 
-from canasta.model import PlayerId, PlayerState
+from canasta.model import PlayerState
 from canasta.rules import hand_penalty, meld_score, red_three_score
 
 

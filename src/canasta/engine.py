@@ -10,7 +10,6 @@ from canasta.model import (
     GameState,
     Meld,
     PlayerId,
-    PlayerState,
     RuleError,
 )
 from canasta.rules import (
@@ -20,7 +19,6 @@ from canasta.rules import (
     can_pickup_frozen_discard,
     discard_pile_is_frozen,
     opening_meld_value,
-    red_three_score,
     split_meld_cards,
     validate_pickup_cards,
 )

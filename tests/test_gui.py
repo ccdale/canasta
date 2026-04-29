@@ -38,7 +38,7 @@ class TestParseArgs:
 
     def test_parse_args_for_all_desktop_file_variants(self):
         """Verify all bot variants used in .desktop files can be parsed.
-        
+
         The .desktop files use these commands:
         - canasta.desktop: uv run canasta-gui (default: north=random, south=human)
         - canasta-random.desktop: uv run canasta-gui --north random
@@ -51,7 +51,9 @@ class TestParseArgs:
         for variant in variants:
             args = parse_args(["--north", variant])
             assert args.north == variant, f"Failed to parse --north {variant}"
-            assert args.south == "human", f"Default south should be human for --north {variant}"
+            assert args.south == "human", (
+                f"Default south should be human for --north {variant}"
+            )
 
 
 class TestResolveTargetMeldIndex:
@@ -67,9 +69,7 @@ class TestResolveTargetMeldIndex:
         melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]
 
         assert resolve_target_meld_index(melds, [Card("2", "C")]) is None
-        assert (
-            resolve_target_meld_index(melds, [Card("A", "C"), Card("JOKER")]) is None
-        )
+        assert resolve_target_meld_index(melds, [Card("A", "C"), Card("JOKER")]) is None
 
     def test_rejects_multiple_natural_ranks(self):
         melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]

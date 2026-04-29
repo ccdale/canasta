@@ -11,14 +11,15 @@ from canasta.bots import build_bot, play_bot_turn
 from canasta.card_assets import asset_dir, back_image_path, card_image_path
 from canasta.engine import CanastaEngine
 from canasta.gui.bootstrap import parse_args, reexec_with_system_python
+from canasta.gui.dialogs import create_new_game_dialog, create_resume_game_dialog
 from canasta.gui.persistence import (
     get_version,
-    has_saved_game,
     load_game,
     load_game_stats,
     save_game,
     save_game_stats,
 )
+from canasta.gui.state import UIState
 from canasta.gui.utilities import (
     format_card,
     new_cards_in_hand,
@@ -131,27 +132,13 @@ def main(argv: list[str] | None = None) -> int:
             self._south = args.south
             self._bot_seed = args.bot_seed
             self.controllers = _build_controllers(args)
-            self.selected_hand_indexes: set[int] = set()
-            self._meld_index_mapping: list[
-                int
-            ] = []  # Maps dropdown index to actual meld index
+            # UI state management
+            self.ui_state = UIState()
 
             # Load game statistics
             stats = load_game_stats()
             self.north_wins = stats["north_wins"]
             self.south_wins = stats["south_wins"]
-            self._last_winner: PlayerId | None = (
-                None  # Track winner to detect new games
-            )
-            self._bot_timeout_id: int | None = None
-            self._bot_indicator_timeout_id: int | None = None
-            self._bot_indicator_actor: PlayerId | None = None
-            self._bot_indicator_name: str = ""
-            self._bot_indicator_step = 0
-            self._draw_preview_timeout_id: int | None = None
-            self._draw_preview_base_hand: list[Card] | None = None
-            self._draw_preview_inserted_cards: list[Card] | None = None
-            self._draw_preview_restore_scroll: float | None = None
             self.assets_root = (
                 Path(args.assets_dir).expanduser() if args.assets_dir else asset_dir()
             )
@@ -307,61 +294,61 @@ def main(argv: list[str] | None = None) -> int:
             self._maybe_play_bot_turn()
 
         def _cancel_bot_timer(self) -> None:
-            if self._bot_timeout_id is not None:
-                GLib.source_remove(self._bot_timeout_id)
-                self._bot_timeout_id = None
+            if self.ui_state.bot_timeout_id is not None:
+                GLib.source_remove(self.ui_state.bot_timeout_id)
+                self.ui_state.bot_timeout_id = None
             self._stop_bot_indicator()
 
         def _cancel_draw_preview(self) -> None:
-            if self._draw_preview_timeout_id is not None:
-                GLib.source_remove(self._draw_preview_timeout_id)
-                self._draw_preview_timeout_id = None
-            self._draw_preview_base_hand = None
-            self._draw_preview_inserted_cards = None
-            self._draw_preview_restore_scroll = None
+            if self.ui_state.draw_preview_timeout_id is not None:
+                GLib.source_remove(self.ui_state.draw_preview_timeout_id)
+                self.ui_state.draw_preview_timeout_id = None
+            self.ui_state.draw_preview_base_hand = None
+            self.ui_state.draw_preview_inserted_cards = None
+            self.ui_state.draw_preview_restore_scroll = None
 
         def _clear_draw_preview(self) -> bool:
-            self._draw_preview_timeout_id = None
-            self._draw_preview_base_hand = None
-            self._draw_preview_inserted_cards = None
-            if self._draw_preview_restore_scroll is not None:
+            self.ui_state.draw_preview_timeout_id = None
+            self.ui_state.draw_preview_base_hand = None
+            self.ui_state.draw_preview_inserted_cards = None
+            if self.ui_state.draw_preview_restore_scroll is not None:
                 hadj = self.hand_scroll.get_hadjustment()
-                hadj.set_value(self._draw_preview_restore_scroll)
-                self._draw_preview_restore_scroll = None
+                hadj.set_value(self.ui_state.draw_preview_restore_scroll)
+                self.ui_state.draw_preview_restore_scroll = None
             self._refresh()
             return False
 
         def _start_bot_indicator(self, actor: PlayerId, name: str) -> None:
             self._stop_bot_indicator()
-            self._bot_indicator_actor = actor
-            self._bot_indicator_name = name
-            self._bot_indicator_step = 0
+            self.ui_state.bot_indicator_actor = actor
+            self.ui_state.bot_indicator_name = name
+            self.ui_state.bot_indicator_step = 0
             self._set_status(f"[{actor.value}:{name}] thinking")
-            self._bot_indicator_timeout_id = GLib.timeout_add(
+            self.ui_state.bot_indicator_timeout_id = GLib.timeout_add(
                 250, self._tick_bot_indicator
             )
 
         def _stop_bot_indicator(self) -> None:
-            if self._bot_indicator_timeout_id is not None:
-                GLib.source_remove(self._bot_indicator_timeout_id)
-                self._bot_indicator_timeout_id = None
-            self._bot_indicator_actor = None
-            self._bot_indicator_name = ""
-            self._bot_indicator_step = 0
+            if self.ui_state.bot_indicator_timeout_id is not None:
+                GLib.source_remove(self.ui_state.bot_indicator_timeout_id)
+                self.ui_state.bot_indicator_timeout_id = None
+            self.ui_state.bot_indicator_actor = None
+            self.ui_state.bot_indicator_name = ""
+            self.ui_state.bot_indicator_step = 0
 
         def _tick_bot_indicator(self) -> bool:
-            if self._bot_indicator_actor is None:
+            if self.ui_state.bot_indicator_actor is None:
                 return False
-            suffix = "." * ((self._bot_indicator_step % 3) + 1)
+            suffix = "." * ((self.ui_state.bot_indicator_step % 3) + 1)
             self._set_status(
-                f"[{self._bot_indicator_actor.value}:{self._bot_indicator_name}] thinking{suffix}"
+                f"[{self.ui_state.bot_indicator_actor.value}:{self.ui_state.bot_indicator_name}] thinking{suffix}"
             )
-            self._bot_indicator_step += 1
+            self.ui_state.bot_indicator_step += 1
             return True
 
         def _maybe_play_bot_turn(self) -> None:
             """If the current player is bot-controlled, auto-play their full turn."""
-            if self._bot_timeout_id is not None:
+            if self.ui_state.bot_timeout_id is not None:
                 return
             state = self.engine.state
             if state.winner is not None:
@@ -371,11 +358,11 @@ def main(argv: list[str] | None = None) -> int:
                 return
             self._start_bot_indicator(state.current_player, controller.name)
             self._refresh_controls()
-            self._bot_timeout_id = GLib.timeout_add(1000, self._play_one_bot_turn)
+            self.ui_state.bot_timeout_id = GLib.timeout_add(1000, self._play_one_bot_turn)
 
         def _play_one_bot_turn(self) -> bool:
             """Play one bot turn, then optionally schedule the next bot seat."""
-            self._bot_timeout_id = None
+            self.ui_state.bot_timeout_id = None
             self._stop_bot_indicator()
             state = self.engine.state
             if state.winner is not None:
@@ -415,9 +402,9 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             }
             self.engine = CanastaEngine()
-            self.selected_hand_indexes.clear()
-            self._meld_index_mapping = []
-            self._last_winner = None  # Reset winner tracking for new game
+            self.ui_state.selected_hand_indexes.clear()
+            self.ui_state.meld_index_mapping = []
+            self.ui_state.last_winner = None  # Reset winner tracking for new game
             self._set_status(self._initial_status_message())
             self._refresh()
             # Auto-save newly started game
@@ -435,118 +422,28 @@ def main(argv: list[str] | None = None) -> int:
             self._cancel_draw_preview()
             # Preserve current controller setup since we don't store it
             self.engine.state = saved_state
-            self.selected_hand_indexes.clear()
-            self._meld_index_mapping = []
-            self._last_winner = None
+            self.ui_state.selected_hand_indexes.clear()
+            self.ui_state.meld_index_mapping = []
+            self.ui_state.last_winner = None
             self._set_status("Game restored from save")
             self._refresh()
             self._maybe_play_bot_turn()
 
         def _check_saved_game_on_startup(self) -> None:
             """Check for saved game on startup and offer to resume if one exists."""
-            if not has_saved_game():
-                return
-
-            dialog = Gtk.Window()
-            dialog.set_title("Resume Game?")
-            dialog.set_transient_for(self)
-            dialog.set_modal(True)
-            dialog.set_resizable(False)
-
-            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-            box.set_margin_top(16)
-            box.set_margin_bottom(16)
-            box.set_margin_start(16)
-            box.set_margin_end(16)
-            dialog.set_child(box)
-
-            label = Gtk.Label(label="A saved game was found. Resume?")
-            label.set_wrap(True)
-            box.append(label)
-
-            btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            btn_row.set_halign(Gtk.Align.END)
-
-            new_btn = Gtk.Button(label="New Game")
-            new_btn.connect(
-                "clicked", lambda _: (dialog.close(), self._show_new_game_dialog(None))
+            create_resume_game_dialog(
+                self, on_resume=self._load_saved_game, on_new_game=self._show_new_game_dialog
             )
-            btn_row.append(new_btn)
-
-            resume_btn = Gtk.Button(label="Resume")
-            resume_btn.add_css_class("suggested-action")
-            resume_btn.connect(
-                "clicked", lambda _: (dialog.close(), self._load_saved_game())
-            )
-            btn_row.append(resume_btn)
-
-            box.append(btn_row)
-            # Defer dialog presentation until after main window is realized
-            GLib.idle_add(lambda: dialog.present() or False)
 
         def _show_new_game_dialog(self, _button: Gtk.Button) -> None:
-            dialog = Gtk.Window()
-            dialog.set_title("New Game")
-            dialog.set_transient_for(self)
-            dialog.set_modal(True)
-            dialog.set_resizable(False)
-
-            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-            box.set_margin_top(16)
-            box.set_margin_bottom(16)
-            box.set_margin_start(16)
-            box.set_margin_end(16)
-            dialog.set_child(box)
-
-            north_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            north_lbl = Gtk.Label(label="North seat:", xalign=0)
-            north_lbl.set_hexpand(True)
-            north_row.append(north_lbl)
-            north_model = Gtk.StringList.new(_BOT_CHOICES)
-            north_dd = Gtk.DropDown.new(north_model, None)
-            north_dd.set_selected(_BOT_CHOICES.index(self._north))
-            north_row.append(north_dd)
-            box.append(north_row)
-
-            south_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            south_lbl = Gtk.Label(label="South seat:", xalign=0)
-            south_lbl.set_hexpand(True)
-            south_row.append(south_lbl)
-            south_model = Gtk.StringList.new(_BOT_CHOICES)
-            south_dd = Gtk.DropDown.new(south_model, None)
-            south_dd.set_selected(_BOT_CHOICES.index(self._south))
-            south_row.append(south_dd)
-            box.append(south_row)
-
-            seed_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            seed_lbl = Gtk.Label(label="Bot seed:", xalign=0)
-            seed_lbl.set_hexpand(True)
-            seed_row.append(seed_lbl)
-            adj = Gtk.Adjustment.new(self._bot_seed, 0, 9999, 1, 10, 0)
-            seed_spin = Gtk.SpinButton.new(adj, 1, 0)
-            seed_row.append(seed_spin)
-            box.append(seed_row)
-
-            btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            btn_row.set_halign(Gtk.Align.END)
-            cancel_btn = Gtk.Button(label="Cancel")
-            cancel_btn.connect("clicked", lambda _: dialog.close())
-            btn_row.append(cancel_btn)
-            start_btn = Gtk.Button(label="Start")
-            start_btn.add_css_class("suggested-action")
-
-            def _on_start(_btn: Gtk.Button) -> None:
-                north = _BOT_CHOICES[north_dd.get_selected()]
-                south = _BOT_CHOICES[south_dd.get_selected()]
-                seed = int(seed_spin.get_value())
-                dialog.close()
-                self._reset_game(north, south, seed)
-
-            start_btn.connect("clicked", _on_start)
-            btn_row.append(start_btn)
-            box.append(btn_row)
-
-            dialog.present()
+            create_new_game_dialog(
+                self,
+                self._north,
+                self._south,
+                self._bot_seed,
+                _BOT_CHOICES,
+                self._reset_game,
+            )
 
         def _initial_status_message(self) -> str:
             if not self.assets_root.exists():
@@ -574,7 +471,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         def _selected_indexes(self) -> list[int]:
-            return sorted(self.selected_hand_indexes)
+            return sorted(self.ui_state.selected_hand_indexes)
 
         def _render_card_widget(self, card: Card, caption: str) -> Gtk.Widget:
             wrapper = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -587,8 +484,8 @@ def main(argv: list[str] | None = None) -> int:
             state = self.engine.state
 
             # Check if a new winner has been determined
-            if state.winner is not None and state.winner != self._last_winner:
-                self._last_winner = state.winner
+            if state.winner is not None and state.winner != self.ui_state.last_winner:
+                self.ui_state.last_winner = state.winner
                 if state.winner == PlayerId.NORTH:
                     self.north_wins += 1
                 else:
@@ -665,13 +562,13 @@ def main(argv: list[str] | None = None) -> int:
             self._clear_box(self.hand_fixed)
             current = self.engine.state.players[self._viewer_player_id()]
             preview_active = (
-                self._draw_preview_base_hand is not None
-                and self._draw_preview_inserted_cards is not None
+                self.ui_state.draw_preview_base_hand is not None
+                and self.ui_state.draw_preview_inserted_cards is not None
             )
 
             if preview_active:
-                base_hand = self._draw_preview_base_hand or []
-                inserted_cards = self._draw_preview_inserted_cards or []
+                base_hand = self.ui_state.draw_preview_base_hand or []
+                inserted_cards = self.ui_state.draw_preview_inserted_cards or []
                 base_w = (
                     max(CARD_W, (len(base_hand) - 1) * CARD_PEEK + CARD_W)
                     if base_hand
@@ -713,19 +610,19 @@ def main(argv: list[str] | None = None) -> int:
             for idx, card in enumerate(hand):
                 button = Gtk.ToggleButton()
                 button.add_css_class("hand-card")
-                button.set_active(idx in self.selected_hand_indexes)
+                button.set_active(idx in self.ui_state.selected_hand_indexes)
                 button.set_sensitive(True)
                 button.set_child(build_card_widget(card, self.assets_root, format_card))
                 button.connect("toggled", self._on_hand_toggled, idx)
                 x = idx * CARD_PEEK
-                y = 0 if idx in self.selected_hand_indexes else CARD_LIFT
+                y = 0 if idx in self.ui_state.selected_hand_indexes else CARD_LIFT
                 self.hand_fixed.put(button, x, y)
 
         def _refresh_melds(self) -> None:
             n_items = self.meld_model.get_n_items()
             if n_items > 0:
                 self.meld_model.splice(0, n_items, [])
-            self._meld_index_mapping = []  # Reset mapping
+            self.ui_state.meld_index_mapping = []  # Reset mapping
             viewer = self._viewer_player_id()
             for player_id, melds_box in (
                 (PlayerId.NORTH, self.north_melds_box),
@@ -763,7 +660,7 @@ def main(argv: list[str] | None = None) -> int:
                 for original_idx, meld in sorted_melds:
                     if player_id == viewer:
                         self.meld_model.append(f"Meld {original_idx}")
-                        self._meld_index_mapping.append(original_idx)
+                        self.ui_state.meld_index_mapping.append(original_idx)
                     title = f"Meld {original_idx}"
                     if meld.is_canasta:
                         title += " (Canasta)"
@@ -850,7 +747,7 @@ def main(argv: list[str] | None = None) -> int:
             selected = self._selected_indexes()
             viewer = state.players[self._viewer_player_id()]
             is_human_turn = self.controllers.get(state.current_player) is None
-            preview_active = self._draw_preview_inserted_cards is not None
+            preview_active = self.ui_state.draw_preview_inserted_cards is not None
             has_current_melds = bool(viewer.melds)
             selected_cards = [
                 viewer.hand[idx] for idx in selected if idx < len(viewer.hand)
@@ -911,7 +808,7 @@ def main(argv: list[str] | None = None) -> int:
             self._cancel_draw_preview()
             try:
                 result = callback()
-                self.selected_hand_indexes.clear()
+                self.ui_state.selected_hand_indexes.clear()
                 self._set_status(result.message)
             except RuleError as exc:
                 self._set_status(f"error: {exc}")
@@ -922,14 +819,14 @@ def main(argv: list[str] | None = None) -> int:
 
         def _on_hand_toggled(self, button: Gtk.ToggleButton, index: int) -> None:
             if button.get_active():
-                self.selected_hand_indexes.add(index)
+                self.ui_state.selected_hand_indexes.add(index)
             else:
-                self.selected_hand_indexes.discard(index)
+                self.ui_state.selected_hand_indexes.discard(index)
             self._refresh_summary()
             self._refresh_controls()
 
         def _on_deselect_all(self, _button: Gtk.Button) -> None:
-            self.selected_hand_indexes.clear()
+            self.ui_state.selected_hand_indexes.clear()
             self._refresh_hand()
             self._refresh_summary()
             self._refresh_controls()
@@ -939,7 +836,7 @@ def main(argv: list[str] | None = None) -> int:
             before_hand = list(self.engine.current_hand())
             try:
                 result = self.engine.draw_stock()
-                self.selected_hand_indexes.clear()
+                self.ui_state.selected_hand_indexes.clear()
                 self._set_status(result.message)
             except RuleError as exc:
                 self._set_status(f"error: {exc}")
@@ -951,11 +848,11 @@ def main(argv: list[str] | None = None) -> int:
             inserted = new_cards_in_hand(before_hand, after_hand)
             if inserted:
                 # Show newly inserted cards at draw/pickup position briefly.
-                self._draw_preview_base_hand = before_hand
-                self._draw_preview_inserted_cards = inserted
+                self.ui_state.draw_preview_base_hand = before_hand
+                self.ui_state.draw_preview_inserted_cards = inserted
                 hadj = self.hand_scroll.get_hadjustment()
-                self._draw_preview_restore_scroll = hadj.get_value()
-                self._draw_preview_timeout_id = GLib.timeout_add(
+                self.ui_state.draw_preview_restore_scroll = hadj.get_value()
+                self.ui_state.draw_preview_timeout_id = GLib.timeout_add(
                     1000, self._clear_draw_preview
                 )
 
@@ -986,12 +883,12 @@ def main(argv: list[str] | None = None) -> int:
 
             if meld_idx is None:
                 dropdown_idx = self.meld_selector.get_selected()
-                if dropdown_idx >= len(self._meld_index_mapping):
+                if dropdown_idx >= len(self.ui_state.meld_index_mapping):
                     self._set_status("error: select a meld first")
                     self._refresh_controls()
                     return
                 # Map dropdown index to actual meld index
-                meld_idx = self._meld_index_mapping[dropdown_idx]
+                meld_idx = self.ui_state.meld_index_mapping[dropdown_idx]
 
             self._run_action(lambda: self.engine.add_to_meld(meld_idx, indexes))
 
@@ -1004,7 +901,7 @@ def main(argv: list[str] | None = None) -> int:
             self._run_action(lambda: self.engine.discard(indexes[0]))
 
         def _on_next_round(self, _button: Gtk.Button) -> None:
-            self._last_winner = None  # Reset winner tracking when moving to next round
+            self.ui_state.last_winner = None  # Reset winner tracking when moving to next round
             self._run_action(self.engine.next_round)
 
     class CanastaApplication(Gtk.Application):
