@@ -3,6 +3,11 @@
         "uv": true,
         "git init": true,
         "git add": true,
-        "git commit": true
+        "git commit": true,
+        "/^python -c \"import sys; sys\\.path\\.insert\\(0, 'src'\\); import canasta\\.gui; print\\('Import successful'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "mv": true
     }
 }
