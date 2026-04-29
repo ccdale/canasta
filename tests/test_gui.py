@@ -36,6 +36,23 @@ class TestParseArgs:
         assert args.south == "safe"
         assert args.bot_seed == 42
 
+    def test_parse_args_for_all_desktop_file_variants(self):
+        """Verify all bot variants used in .desktop files can be parsed.
+        
+        The .desktop files use these commands:
+        - canasta.desktop: uv run canasta-gui (default: north=random, south=human)
+        - canasta-random.desktop: uv run canasta-gui --north random
+        - canasta-greedy.desktop: uv run canasta-gui --north greedy
+        - canasta-safe.desktop: uv run canasta-gui --north safe
+        - canasta-aggro.desktop: uv run canasta-gui --north aggro
+        - canasta-planner.desktop: uv run canasta-gui --north planner
+        """
+        variants = ["random", "greedy", "safe", "aggro", "planner"]
+        for variant in variants:
+            args = parse_args(["--north", variant])
+            assert args.north == variant, f"Failed to parse --north {variant}"
+            assert args.south == "human", f"Default south should be human for --north {variant}"
+
 
 class TestResolveTargetMeldIndex:
     def test_returns_matching_meld_for_single_natural_rank(self):
