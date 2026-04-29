@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-import tomllib
 from pathlib import Path
 
+from canasta import __version__
 from canasta.model import Card, GameState, Meld, PlayerId, PlayerState
 
 
@@ -17,17 +17,8 @@ def get_config_dir() -> Path:
 
 
 def get_version() -> str:
-    """Get the version string from pyproject.toml."""
-    project_root = Path(__file__).parent.parent.parent
-    pyproject_path = project_root / "pyproject.toml"
-    if pyproject_path.exists():
-        try:
-            with open(pyproject_path, "rb") as f:
-                data = tomllib.load(f)
-                return data.get("project", {}).get("version", "unknown")
-        except Exception:
-            pass
-    return "unknown"
+    """Return the package version used in the app title."""
+    return __version__
 
 
 def load_game_stats() -> dict[str, int]:
