@@ -1,222 +1,107 @@
-# Canasta Implementation Handoff (2026-04-28)
+# Canasta Implementation Handoff (2026-04-29)
 
-## Current status
-- Fully implemented standalone Canasta game at `/home/chris/src/canasta`.
-- Initialized as git repository with multiple commits.
-- Current package/version in `pyproject.toml`: `canasta` / `1.3.6`.
-- CLI entry point: `canasta = "canasta.cli:main"`.
-- GUI entry point: `canasta-gui = "canasta.gui:main"`.
-- Python requirement: `>=3.12`.
-- Managed with `uv` (uv.lock included).
+## Current Status
+- Repository: /home/chris/src/canasta
+- Package: canasta
+- Current version: 1.4.5
+- Python: >=3.12
+- Environment/tooling: uv-managed project
+- CLI entry point: canasta = canasta.cli:main
+- GUI entry point: canasta-gui = canasta.gui:main
+- Test status: 180 tests passing
 
-## Fully Implemented
+## What Is Complete
 
-### Core Architecture (model.py, rules.py, engine.py)
-- Core datatypes: `Card`, `Meld`, `PlayerState`, `GameState`, `PlayerId`.
-- Deck builder: `build_double_deck()`.
-- Rule functions: meld validation, card adding, discard rules, scoring.
-- `CanastaEngine` with full turn flow: draw, meld, add to meld, discard, next round.
-- Custom exception: `RuleError`.
-- Action response dataclass: `ActionResult`.
-- Winner check: empty hand + at least one canasta.
+### Core Game
+- Full game model/rules/engine implementation for standalone Canasta.
+- Multi-round scoring and winner detection.
+- Discard freeze logic, pickup validation, opening meld minimum, red-three handling.
 
-### CLI (cli.py)
-- Interactive commands: help, state, draw, meld, add, discard, quit, next_round.
-- State rendering with optional colored suit symbols.
-- Command validation and error handling.
+### Bots
+- Bot variants implemented: random, greedy, safe, aggro, planner.
+- Deterministic seeding via --bot-seed.
 
-### GUI (gui.py, GTK4)
-- Full GTK4 interface for two-player local play.
-- Fanned card display with selection and lift-on-select.
-- Meld display with numerical ordering by rank.
-- Wild card positioning in canastas (natural on top, wild fanned on bottom).
-- New Game dialog with configurable player types and bot seed.
-- Stock/discard pile display.
-- Auto-refresh game state on every action.
+### Persistence and Stats
+- Save game to ~/.config/canasta/game.json.
+- Resume flow on startup.
+- Win/loss stats in ~/.config/canasta/stats.json.
 
-### AI Players (bot_strategies.py, bots.py)
-- Five bot types: `random`, `greedy`, `safe`, `aggro`, `planner`.
-- Deterministic behavior via `--bot-seed` parameter.
-- Configurable via CLI and GUI.
+### GUI Refactor
+- Phase 1 complete:
+  - src/canasta/gui/bootstrap.py
+  - src/canasta/gui/persistence.py
+  - src/canasta/gui/utilities.py
+  - src/canasta/gui/widgets.py
+  - src/canasta/gui/__init__.py and src/canasta/gui/__main__.py
+- Phase 2 complete:
+  - src/canasta/gui/dialogs.py extracted and used by main window.
+  - src/canasta/gui/state.py extracted and integrated (UIState dataclass).
+  - src/canasta/gui/main.py now uses extracted dialogs/state instead of inline dialog/state sprawl.
+- Current GUI file sizes:
+  - src/canasta/gui/main.py: 928 lines
+  - src/canasta/gui/dialogs.py: 147 lines
+  - src/canasta/gui/state.py: 58 lines
 
-### Game State Persistence (NEW in v1.3.6)
-- Auto-save game state to `$HOME/.config/canasta/game.json` after every action.
-- Resume prompt on startup if saved game exists.
-- Complete state serialization: hands, melds, scores, stock, discard, round number.
+### Version Handling
+- Package-level version workflow now centralized in src/canasta/__init__.py.
+- __version__ and get_version() resolve from pyproject.toml using git-root fallback, matching tstomkv-style workflow.
+- GUI title version path uses this package version source (no more unknown in normal repo runs).
 
-### Game Statistics (NEW in v1.3.4)
-- Win/loss tracking in `$HOME/.config/canasta/stats.json`.
-- All-time record persists across sessions.
-- Display: "All-time record: North X wins | South Y wins"
+## Recent Milestones
+- 68edb32: Phase 1 modularization commit.
+- 38243f8: HANDOFF updated for Phase 1 completion.
+- 3981f2e: Added gui/__main__.py for python -m canasta.gui execution path.
+- fcb8c17 + eb0e902: GUI test updates and explicit desktop-variant coverage.
+- df1c0ad: Phase 2 refactor (dialogs/state extraction and integration).
+- 2e7386d: Unified version lookup with package __version__.
 
-### Development Tools
-- **Testing**: 129 pytest tests covering model, rules, engine, bots.
-- **Linting**: Ruff integrated for code quality (`uv run ruff check .`).
-- **Documentation**: 4 sequential doc files in `docs/`, README, rules.md.
+## Remaining Work
 
-## GUI Refactoring Progress
+### Phase 3 (next)
+Goal: reduce src/canasta/gui/main.py further by extracting rendering and bot automation concerns.
 
-### ✅ Phase 1 Complete (v1.4.2)
+#### Recommended extraction targets
+1. src/canasta/gui/renderer.py
+- Move refresh pipeline and UI rendering internals:
+  - _refresh
+  - _refresh_summary
+  - _refresh_hand
+  - _refresh_melds
+  - _refresh_controls
 
-Extracted four low-risk utility modules from monolithic gui.py:
+2. src/canasta/gui/bot_runner.py (or gui/bots.py)
+- Move bot scheduling/indicator/play-loop methods:
+  - _maybe_play_bot_turn
+  - _play_one_bot_turn
+  - _start_bot_indicator
+  - _tick_bot_indicator
+  - _stop_bot_indicator
+  - _cancel_bot_timer
 
-- **gui/bootstrap.py** (92 lines): Python discovery, argument parsing, system Python re-execution
-- **gui/persistence.py** (144 lines): Game state/stats serialization, save/load logic
-- **gui/utilities.py** (76 lines): Card formatting, meld manipulation, sorting
-- **gui/widgets.py** (103 lines): GTK4 widget builders for cards and piles
+3. Keep in main.py
+- Application/window wiring
+- event dispatch hooks
+- orchestration glue between engine + renderer + bot runner + dialogs + ui_state
 
-Result: **gui/main.py** reduced to ~1,031 lines (from ~1,300), maintaining 100% backward compatibility.
+#### Suggested sequence
+1. Extract renderer first (lower behavior risk, mostly deterministic display logic).
+2. Add/update GUI tests for any moved helper behavior where practical.
+3. Extract bot runner second (timer/callback behavior).
+4. Re-run full checks and desktop entry command variants.
 
-Benefits realized:
-- Each module has a single clear responsibility
-- `persistence.py` is now independently testable
-- `utilities.py` functions are reusable without GTK dependency
-- Bootstrap code isolated from UI logic
-- Easier to navigate and understand GUI architecture
+## Validation Commands
+- uv sync
+- uv run ruff check .
+- uv run pytest tests/ -q
+- uv run canasta-gui
+- uv run canasta-gui --north random
+- uv run canasta-gui --north greedy
+- uv run canasta-gui --north safe
+- uv run canasta-gui --north aggro
+- uv run canasta-gui --north planner
 
-### Current Structure Issues
-The `CanastaWindow` class mixes:
-- Widget construction and layout (~380 lines of `__init__`)
-- Rendering/refresh logic (_refresh, _refresh_hand, _refresh_melds, _refresh_controls, _refresh_summary)
-- Event handlers (_on_draw, _on_pickup, _on_meld, _on_discard, etc.)
-- Bot management and timers (_maybe_play_bot_turn, _play_one_bot_turn, _start_bot_indicator, etc.)
-- Draw preview state management (_clear_draw_preview, _cancel_draw_preview)
-- Game state management (_reset_game, _load_saved_game)
-- Dialog creation and callbacks
-- UI state tracking (selected_hand_indexes, meld_index_mapping, draw preview state, bot indicator state)
-
-### Proposed Modularization
-
-#### 1. **gui/widgets.py** — Reusable widget builders
-```
-_build_card_picture()
-_build_card_widget()
-_build_fanned_cards()
-_build_pile_picture()
-```
-Reason: These are pure UI construction functions with no dependencies on game logic.
-
-#### 2. **gui/persistence.py** — Save/load game and stats
-```
-_get_config_dir()
-_load_game_stats()
-_save_game_stats()
-_game_state_to_dict() / _game_state_from_dict()
-_save_game()
-_load_game()
-_has_saved_game()
-```
-Reason: Isolates all file I/O and serialization logic; testable independently.
-
-#### 3. **gui/dialogs.py** — Modal dialogs
-- `ResumeGameDialog` class (wraps _check_saved_game_on_startup)
-- `NewGameDialog` class (wraps _show_new_game_dialog)
-
-Reason: Dialogs are complex, multi-step UI with their own state and callbacks. Extracting as classes makes them reusable and easier to test.
-
-#### 4. **gui/utilities.py** — Card/meld helpers
-```
-_format_card()
-_resolve_target_meld_index()
-_card_key()
-_new_cards_in_hand()
-_reorganize_meld_cards()
-_rank_sort_key()
-```
-Reason: Pure functions for card manipulation logic; no UI dependencies.
-
-#### 5. **gui/bootstrap.py** — Python discovery
-```
-_parse_args()
-_python_candidates()
-_find_python_with_gtk()
-_reexec_with_system_python()
-_find_python_with_gtk()
-```
-Reason: Only used during startup; separating makes `main()` cleaner.
-
-#### 6. **gui/state.py** — UI state management (optional)
-```
-class UIState:
-    selected_hand_indexes: set[int]
-    meld_index_mapping: list[int]
-    draw_preview_base_hand: list[Card] | None
-    draw_preview_inserted_cards: list[Card] | None
-    draw_preview_restore_scroll: float | None
-    draw_preview_timeout_id: int | None
-```
-Reason: Groups all transient UI state separately from game state; makes CanastaWindow easier to understand.
-
-#### 7. **gui/bots.py** — Bot automation (optional helper class)
-```
-class BotController:
-    def __init__(self, engine, controllers)
-    def start_turn()
-    def play_turn() -> bool
-    def stop()
-    def _tick_indicator()
-```
-Reason: Encapsulates bot turn scheduling and indicator updates; currently spread across _maybe_play_bot_turn, _play_one_bot_turn, _start_bot_indicator, _tick_bot_indicator, _stop_bot_indicator.
-
-#### 8. **gui/renderer.py** — Rendering logic
-```
-class GameRenderer:
-    def refresh(window, engine, state)
-    def refresh_summary()
-    def refresh_hand()
-    def refresh_melds()
-    def refresh_controls()
-```
-Reason: All the `_refresh_*` methods are tightly coupled; extracting with a clear API reduces CanastaWindow's size.
-
-### Suggested Migration Path
-
-**Phase 1 (Low-risk):**
-1. Extract `bootstrap.py` (no internal dependencies)
-2. Extract `persistence.py` (only depends on model)
-3. Extract `utilities.py` (pure functions)
-4. Extract `widgets.py` (pure UI builders)
-
-**Phase 2 (Medium-risk):**
-5. Extract `dialogs.py` (new classes that take GTK objects)
-6. Extract `state.py` (just a dataclass; improves readability)
-
-**Phase 3 (Higher-risk, higher-reward):**
-7. Extract `bots.py` helper class
-8. Extract `renderer.py` helper class
-9. Refactor CanastaWindow.__init__() to use injected dependencies
-
-### Post-Refactoring Result
-- **gui.py**: ~150–200 lines (main entry point, CanastaWindow layout & event dispatch)
-- **dialogs.py**: ~100–120 lines per dialog class
-- **renderer.py**: ~200–250 lines (rendering logic)
-- **persistence.py**: ~100–150 lines
-- **widgets.py**: ~60–80 lines
-- **utilities.py**: ~80–100 lines
-- **bots.py**: ~60–80 lines (helper class)
-- **bootstrap.py**: ~60–80 lines
-- Plus **state.py**: ~30–40 lines (dataclass)
-
-**Total code is redistributed but not duplicated; each file has a single clear responsibility.**
-
-## Known Limitations / Future Work
-- No variant rulesets (only standard North American Canasta rules).
-- No network play (local two-player only).
-- No undo/history.
-- Card images optional (text fallback if not found).
-
-## Quick Start for Future Development
-
-```bash
-cd ~/src/canasta
-uv sync
-uv run canasta              # CLI mode
-uv run canasta-gui          # GUI mode
-uv run pytest -q            # Run tests
-uv run ruff check .         # Check code quality
-```
-
-## Configuration Files
-- `$HOME/.config/canasta/game.json` — Saved game state
-- `$HOME/.config/canasta/stats.json` — Win/loss statistics
-- Card images: `$HOME/.local/share/canasta/` (symlink from ccacards)
+## Workflow Notes
+- Commit in small increments.
+- For each commit: run uv version --bump patch first.
+- Include pyproject.toml and uv.lock in each versioned commit.
+- Keep Ruff clean before committing.
