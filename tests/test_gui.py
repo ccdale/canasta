@@ -1,15 +1,40 @@
 import pytest
 
-from canasta.gui import _parse_args, _resolve_target_meld_index
+from canasta.gui import main
+from canasta.gui.bootstrap import parse_args
+from canasta.gui.utilities import resolve_target_meld_index
 from canasta.model import Card, Meld, RuleError
+
+
+class TestGUIEntryPoint:
+    """Test that the GUI module is properly set up as an entry point."""
+
+    def test_gui_main_is_importable(self):
+        """Verify that the main entry point function exists and is callable."""
+        assert callable(main)
+
+    def test_gui_module_is_executable(self):
+        """Verify the GUI module can be run as 'python -m canasta.gui'."""
+        # This test just verifies the module structure is correct
+        # The actual GUI startup requires GTK which may not be available in test env
+        from canasta.gui import __main__  # noqa: F401
+
+        assert True
 
 
 class TestParseArgs:
     def test_defaults_to_random_north_and_human_south(self):
-        args = _parse_args([])
+        args = parse_args([])
 
         assert args.north == "random"
         assert args.south == "human"
+
+    def test_parse_args_respects_overrides(self):
+        args = parse_args(["--north", "greedy", "--south", "safe", "--bot-seed", "42"])
+
+        assert args.north == "greedy"
+        assert args.south == "safe"
+        assert args.bot_seed == 42
 
 
 class TestResolveTargetMeldIndex:
@@ -19,24 +44,24 @@ class TestResolveTargetMeldIndex:
             Meld(cards=[Card("K", "S"), Card("K", "H"), Card("K", "D")]),
         ]
 
-        assert _resolve_target_meld_index(melds, [Card("K", "C")]) == 1
+        assert resolve_target_meld_index(melds, [Card("K", "C")]) == 1
 
     def test_returns_none_when_any_selected_card_is_wild(self):
         melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]
 
-        assert _resolve_target_meld_index(melds, [Card("2", "C")]) is None
+        assert resolve_target_meld_index(melds, [Card("2", "C")]) is None
         assert (
-            _resolve_target_meld_index(melds, [Card("A", "C"), Card("JOKER")]) is None
+            resolve_target_meld_index(melds, [Card("A", "C"), Card("JOKER")]) is None
         )
 
     def test_rejects_multiple_natural_ranks(self):
         melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]
 
         with pytest.raises(RuleError, match="must all match one meld rank"):
-            _resolve_target_meld_index(melds, [Card("A", "C"), Card("K", "C")])
+            resolve_target_meld_index(melds, [Card("A", "C"), Card("K", "C")])
 
     def test_rejects_missing_target_meld(self):
         melds = [Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])]
 
         with pytest.raises(RuleError, match="no existing meld for rank K"):
-            _resolve_target_meld_index(melds, [Card("K", "C")])
+            resolve_target_meld_index(melds, [Card("K", "C")])
