@@ -7,39 +7,32 @@ import sys
 from pathlib import Path
 
 from canasta.bot_strategies import TurnBot
-from canasta.bots import build_bot, play_bot_turn
-from canasta.card_assets import asset_dir, back_image_path, card_image_path
+from canasta.bots import build_bot
+from canasta.card_assets import asset_dir
 from canasta.engine import CanastaEngine
 from canasta.gui.bootstrap import parse_args, reexec_with_system_python
+from canasta.gui.bot_runner import BotRunner, set_glib_import
 from canasta.gui.dialogs import create_new_game_dialog, create_resume_game_dialog
 from canasta.gui.persistence import (
     get_version,
     load_game,
     load_game_stats,
     save_game,
-    save_game_stats,
 )
+from canasta.gui.renderer import GameRenderer
+from canasta.gui.renderer import set_gtk_imports as set_renderer_gtk_imports
 from canasta.gui.state import UIState
 from canasta.gui.utilities import (
-    format_card,
     new_cards_in_hand,
-    rank_sort_key,
-    reorganize_meld_cards,
     resolve_target_meld_index,
 )
 from canasta.gui.widgets import (
     CARD_H,
     CARD_LIFT,
-    CARD_PEEK,
     CARD_W,
-    MELD_PEEK,
-    build_card_widget,
-    build_fanned_cards,
-    build_pile_picture,
     set_gtk_imports,
 )
-from canasta.model import Card, PlayerId, RuleError
-from canasta.rules import discard_pile_is_frozen
+from canasta.model import PlayerId, RuleError
 
 _BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner"]
 
@@ -98,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # Initialize widget module with GTK imports
     set_gtk_imports(Gtk, Gdk, GdkPixbuf)
+    set_renderer_gtk_imports(Gtk)
+    set_glib_import(GLib)
 
     def _install_css() -> None:
         display = Gdk.Display.get_default()
@@ -134,6 +129,8 @@ def main(argv: list[str] | None = None) -> int:
             self.controllers = _build_controllers(args)
             # UI state management
             self.ui_state = UIState()
+            self.bot_runner = BotRunner(self)
+            self.renderer = GameRenderer(self)
 
             # Load game statistics
             stats = load_game_stats()
@@ -294,18 +291,12 @@ def main(argv: list[str] | None = None) -> int:
             self._maybe_play_bot_turn()
 
         def _cancel_bot_timer(self) -> None:
-            if self.ui_state.bot_timeout_id is not None:
-                GLib.source_remove(self.ui_state.bot_timeout_id)
-                self.ui_state.bot_timeout_id = None
-            self._stop_bot_indicator()
+            self.bot_runner.cancel_timer()
 
         def _cancel_draw_preview(self) -> None:
             if self.ui_state.draw_preview_timeout_id is not None:
                 GLib.source_remove(self.ui_state.draw_preview_timeout_id)
-                self.ui_state.draw_preview_timeout_id = None
-            self.ui_state.draw_preview_base_hand = None
-            self.ui_state.draw_preview_inserted_cards = None
-            self.ui_state.draw_preview_restore_scroll = None
+            self.ui_state.reset_draw_preview()
 
         def _clear_draw_preview(self) -> bool:
             self.ui_state.draw_preview_timeout_id = None
@@ -319,73 +310,19 @@ def main(argv: list[str] | None = None) -> int:
             return False
 
         def _start_bot_indicator(self, actor: PlayerId, name: str) -> None:
-            self._stop_bot_indicator()
-            self.ui_state.bot_indicator_actor = actor
-            self.ui_state.bot_indicator_name = name
-            self.ui_state.bot_indicator_step = 0
-            self._set_status(f"[{actor.value}:{name}] thinking")
-            self.ui_state.bot_indicator_timeout_id = GLib.timeout_add(
-                250, self._tick_bot_indicator
-            )
+            self.bot_runner.start_indicator(actor, name)
 
         def _stop_bot_indicator(self) -> None:
-            if self.ui_state.bot_indicator_timeout_id is not None:
-                GLib.source_remove(self.ui_state.bot_indicator_timeout_id)
-                self.ui_state.bot_indicator_timeout_id = None
-            self.ui_state.bot_indicator_actor = None
-            self.ui_state.bot_indicator_name = ""
-            self.ui_state.bot_indicator_step = 0
+            self.bot_runner.stop_indicator()
 
         def _tick_bot_indicator(self) -> bool:
-            if self.ui_state.bot_indicator_actor is None:
-                return False
-            suffix = "." * ((self.ui_state.bot_indicator_step % 3) + 1)
-            self._set_status(
-                f"[{self.ui_state.bot_indicator_actor.value}:{self.ui_state.bot_indicator_name}] thinking{suffix}"
-            )
-            self.ui_state.bot_indicator_step += 1
-            return True
+            return self.bot_runner.tick_indicator()
 
         def _maybe_play_bot_turn(self) -> None:
-            """If the current player is bot-controlled, auto-play their full turn."""
-            if self.ui_state.bot_timeout_id is not None:
-                return
-            state = self.engine.state
-            if state.winner is not None:
-                return
-            controller = self.controllers.get(state.current_player)
-            if controller is None:
-                return
-            self._start_bot_indicator(state.current_player, controller.name)
-            self._refresh_controls()
-            self.ui_state.bot_timeout_id = GLib.timeout_add(1000, self._play_one_bot_turn)
+            self.bot_runner.maybe_play_turn()
 
         def _play_one_bot_turn(self) -> bool:
-            """Play one bot turn, then optionally schedule the next bot seat."""
-            self.ui_state.bot_timeout_id = None
-            self._stop_bot_indicator()
-            state = self.engine.state
-            if state.winner is not None:
-                return False
-            controller = self.controllers.get(state.current_player)
-            if controller is None:
-                return False
-            try:
-                actor = state.current_player
-                actions = play_bot_turn(self.engine, controller)
-                self._set_status(
-                    f"[{actor.value}:{controller.name}] " + " | ".join(actions)
-                )
-            except RuleError as exc:
-                self._set_status(
-                    f"[{state.current_player.value}:{controller.name}] error: {exc}"
-                )
-                self._refresh()
-                return False
-
-            self._refresh()
-            self._maybe_play_bot_turn()
-            return False
+            return self.bot_runner.play_one_turn()
 
         def _reset_game(self, north: str, south: str, bot_seed: int) -> None:
             self._cancel_bot_timer()
@@ -402,8 +339,7 @@ def main(argv: list[str] | None = None) -> int:
                 ),
             }
             self.engine = CanastaEngine()
-            self.ui_state.selected_hand_indexes.clear()
-            self.ui_state.meld_index_mapping = []
+            self.ui_state.reset_selection()
             self.ui_state.last_winner = None  # Reset winner tracking for new game
             self._set_status(self._initial_status_message())
             self._refresh()
@@ -422,8 +358,7 @@ def main(argv: list[str] | None = None) -> int:
             self._cancel_draw_preview()
             # Preserve current controller setup since we don't store it
             self.engine.state = saved_state
-            self.ui_state.selected_hand_indexes.clear()
-            self.ui_state.meld_index_mapping = []
+            self.ui_state.reset_selection()
             self.ui_state.last_winner = None
             self._set_status("Game restored from save")
             self._refresh()
@@ -432,7 +367,9 @@ def main(argv: list[str] | None = None) -> int:
         def _check_saved_game_on_startup(self) -> None:
             """Check for saved game on startup and offer to resume if one exists."""
             create_resume_game_dialog(
-                self, on_resume=self._load_saved_game, on_new_game=self._show_new_game_dialog
+                self,
+                on_resume=self._load_saved_game,
+                on_new_game=self._show_new_game_dialog,
             )
 
         def _show_new_game_dialog(self, _button: Gtk.Button) -> None:
@@ -473,83 +410,8 @@ def main(argv: list[str] | None = None) -> int:
         def _selected_indexes(self) -> list[int]:
             return sorted(self.ui_state.selected_hand_indexes)
 
-        def _render_card_widget(self, card: Card, caption: str) -> Gtk.Widget:
-            wrapper = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-            wrapper.append(build_card_widget(card, self.assets_root, format_card))
-            label = Gtk.Label(label=caption)
-            wrapper.append(label)
-            return wrapper
-
         def _refresh_summary(self) -> None:
-            state = self.engine.state
-
-            # Check if a new winner has been determined
-            if state.winner is not None and state.winner != self.ui_state.last_winner:
-                self.ui_state.last_winner = state.winner
-                if state.winner == PlayerId.NORTH:
-                    self.north_wins += 1
-                else:
-                    self.south_wins += 1
-                save_game_stats(self.north_wins, self.south_wins)
-
-            north = state.players[PlayerId.NORTH]
-            self.north_melds_hdr.set_text(f"North  ({len(north.hand)} cards in hand)")
-
-            self.info_label.set_text(
-                "\n".join(
-                    [
-                        f"Round {state.round_number}  |  "
-                        f"Current: {state.current_player.value}  |  "
-                        + (
-                            f"Winner: {state.winner.value}"
-                            if state.winner is not None
-                            else "No winner yet"
-                        ),
-                        f"Selected: {self._selected_indexes() or '(none)'}  |  "
-                        f"Frozen: {discard_pile_is_frozen(state.discard)}  |  "
-                        f"Turn drawn: {state.turn_drawn}  |  "
-                        f"Hand: {len(state.players[self._viewer_player_id()].hand)} cards",
-                    ]
-                )
-            )
-
-            north_round = self.engine.score(PlayerId.NORTH)
-            south_round = self.engine.score(PlayerId.SOUTH)
-            north_total = self.engine.total_score(PlayerId.NORTH)
-            south_total = self.engine.total_score(PlayerId.SOUTH)
-            self.score_label.set_text(
-                f"North: {north_round} pts (total {north_total})  |  "
-                f"South: {south_round} pts (total {south_total})"
-            )
-
-            self._clear_box(self.stock_box)
-            stock_title = Gtk.Label(label=f"Stock ({len(state.stock)})")
-            stock_title.add_css_class("section-label")
-            self.stock_box.append(stock_title)
-            back_path = back_image_path(self.assets_root)
-            if back_path is not None:
-                self.stock_box.append(build_pile_picture(back_path))
-            else:
-                self.stock_box.append(Gtk.Label(label="[stock]"))
-
-            self._clear_box(self.discard_box)
-            discard_title = Gtk.Label(
-                label=f"Discard ({len(state.discard)})"
-                + (" \u2744" if discard_pile_is_frozen(state.discard) else "")
-            )
-            discard_title.add_css_class("section-label")
-            self.discard_box.append(discard_title)
-            if state.discard:
-                top_discard = state.discard[-1]
-                top_discard_path = card_image_path(top_discard, self.assets_root)
-                if top_discard_path is not None:
-                    self.discard_box.append(build_pile_picture(top_discard_path))
-                else:
-                    self.discard_box.append(
-                        build_card_widget(top_discard, self.assets_root, format_card)
-                    )
-            else:
-                self.discard_box.append(Gtk.Label(label="(empty)"))
+            self.renderer.refresh_summary()
 
         def _viewer_player_id(self) -> PlayerId:
             """Player whose hand is displayed: the human player, or SOUTH for bot-vs-bot."""
@@ -559,250 +421,16 @@ def main(argv: list[str] | None = None) -> int:
             return PlayerId.SOUTH
 
         def _refresh_hand(self) -> None:
-            self._clear_box(self.hand_fixed)
-            current = self.engine.state.players[self._viewer_player_id()]
-            preview_active = (
-                self.ui_state.draw_preview_base_hand is not None
-                and self.ui_state.draw_preview_inserted_cards is not None
-            )
-
-            if preview_active:
-                base_hand = self.ui_state.draw_preview_base_hand or []
-                inserted_cards = self.ui_state.draw_preview_inserted_cards or []
-                base_w = (
-                    max(CARD_W, (len(base_hand) - 1) * CARD_PEEK + CARD_W)
-                    if base_hand
-                    else 0
-                )
-                inserted_gap = 12 if base_hand and inserted_cards else 0
-                inserted_stride = CARD_W + 8
-                inserted_w = (
-                    (len(inserted_cards) - 1) * inserted_stride + CARD_W
-                    if inserted_cards
-                    else 0
-                )
-                total_w = max(CARD_W, base_w + inserted_gap + inserted_w)
-                self.hand_fixed.set_size_request(total_w, CARD_H + CARD_LIFT + 8)
-
-                for idx, card in enumerate(base_hand):
-                    shell = Gtk.Box()
-                    shell.add_css_class("hand-card")
-                    shell.append(build_card_widget(card, self.assets_root, format_card))
-                    x = idx * CARD_PEEK
-                    y = CARD_LIFT
-                    self.hand_fixed.put(shell, x, y)
-
-                start_x = base_w + inserted_gap
-                for idx, card in enumerate(inserted_cards):
-                    shell = Gtk.Box()
-                    shell.add_css_class("hand-card")
-                    shell.add_css_class("draw-preview-new")
-                    shell.append(build_card_widget(card, self.assets_root, format_card))
-                    x = start_x + idx * inserted_stride
-                    y = 0
-                    self.hand_fixed.put(shell, x, y)
-                return
-
-            hand = current.hand
-            n = len(hand)
-            total_w = max(CARD_W, (n - 1) * CARD_PEEK + CARD_W) if n else CARD_W
-            self.hand_fixed.set_size_request(total_w, CARD_H + CARD_LIFT + 8)
-            for idx, card in enumerate(hand):
-                button = Gtk.ToggleButton()
-                button.add_css_class("hand-card")
-                button.set_active(idx in self.ui_state.selected_hand_indexes)
-                button.set_sensitive(True)
-                button.set_child(build_card_widget(card, self.assets_root, format_card))
-                button.connect("toggled", self._on_hand_toggled, idx)
-                x = idx * CARD_PEEK
-                y = 0 if idx in self.ui_state.selected_hand_indexes else CARD_LIFT
-                self.hand_fixed.put(button, x, y)
+            self.renderer.refresh_hand()
 
         def _refresh_melds(self) -> None:
-            n_items = self.meld_model.get_n_items()
-            if n_items > 0:
-                self.meld_model.splice(0, n_items, [])
-            self.ui_state.meld_index_mapping = []  # Reset mapping
-            viewer = self._viewer_player_id()
-            for player_id, melds_box in (
-                (PlayerId.NORTH, self.north_melds_box),
-                (PlayerId.SOUTH, self.south_melds_box),
-            ):
-                self._clear_box(melds_box)
-                player = self.engine.state.players[player_id]
-
-                if player.red_threes:
-                    frame = Gtk.Frame(label="Red 3s")
-                    row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
-                    row.set_margin_top(4)
-                    row.set_margin_bottom(4)
-                    row.set_margin_start(4)
-                    row.set_margin_end(4)
-                    for card in player.red_threes:
-                        row.append(
-                            build_card_widget(card, self.assets_root, format_card)
-                        )
-                    frame.set_child(row)
-                    melds_box.append(frame)
-
-                if not player.melds:
-                    placeholder = Gtk.Label(label="(no melds)")
-                    placeholder.set_margin_start(8)
-                    placeholder.set_valign(Gtk.Align.CENTER)
-                    melds_box.append(placeholder)
-
-                # Sort melds by natural rank numerically
-                sorted_melds = sorted(
-                    enumerate(player.melds),
-                    key=lambda x: rank_sort_key(x[1].natural_rank),
-                )
-
-                for original_idx, meld in sorted_melds:
-                    if player_id == viewer:
-                        self.meld_model.append(f"Meld {original_idx}")
-                        self.ui_state.meld_index_mapping.append(original_idx)
-                    title = f"Meld {original_idx}"
-                    if meld.is_canasta:
-                        title += " (Canasta)"
-                    frame = Gtk.Frame(label=title)
-                    if meld.is_canasta and meld.cards:
-                        # Reorganize cards: natural first, wild last
-                        reorganized = reorganize_meld_cards(meld.cards)
-                        wild_cards = [c for c in reorganized if c.is_wild()]
-
-                        if wild_cards:
-                            # Show natural cards with wild cards fanned below
-                            layout = Gtk.Fixed()
-                            layout.set_size_request(
-                                CARD_W + (len(wild_cards) - 1) * MELD_PEEK + 20,
-                                CARD_H * 2,
-                            )
-
-                            # Show first natural card (or placeholder)
-                            natural_cards = [c for c in reorganized if not c.is_wild()]
-                            if natural_cards:
-                                layout.put(
-                                    build_card_widget(
-                                        natural_cards[0], self.assets_root, format_card
-                                    ),
-                                    0,
-                                    0,
-                                )
-
-                            # Fan wild cards below and to the right
-                            for wild_idx, wild_card in enumerate(wild_cards):
-                                x = wild_idx * MELD_PEEK
-                                y = CARD_H + 4
-                                layout.put(
-                                    build_card_widget(
-                                        wild_card, self.assets_root, format_card
-                                    ),
-                                    x,
-                                    y,
-                                )
-
-                            shell = Gtk.Box()
-                            shell.add_css_class("canasta-card-shell")
-                            shell.set_margin_top(4)
-                            shell.set_margin_bottom(4)
-                            shell.set_margin_start(4)
-                            shell.set_margin_end(4)
-                            shell.append(layout)
-                            frame.set_child(shell)
-                        else:
-                            # All natural cards - show first one prominently
-                            shell = Gtk.Box()
-                            shell.add_css_class("canasta-card-shell")
-                            shell.set_margin_top(4)
-                            shell.set_margin_bottom(4)
-                            shell.set_margin_start(4)
-                            shell.set_margin_end(4)
-                            shell.append(
-                                build_card_widget(
-                                    reorganized[0], self.assets_root, format_card
-                                )
-                            )
-                            frame.set_child(shell)
-                    else:
-                        # Regular meld: reorganize so natural cards come first
-                        reorganized = reorganize_meld_cards(meld.cards)
-                        fan = build_fanned_cards(
-                            reorganized, self.assets_root, format_card
-                        )
-                        fan.set_margin_top(4)
-                        fan.set_margin_bottom(4)
-                        fan.set_margin_start(4)
-                        fan.set_margin_end(4)
-                        frame.set_child(fan)
-                    melds_box.append(frame)
-
-            if (
-                self.meld_model.get_n_items() > 0
-                and self.meld_selector.get_selected() >= self.meld_model.get_n_items()
-            ):
-                self.meld_selector.set_selected(0)
+            self.renderer.refresh_melds()
 
         def _refresh_controls(self) -> None:
-            state = self.engine.state
-            selected = self._selected_indexes()
-            viewer = state.players[self._viewer_player_id()]
-            is_human_turn = self.controllers.get(state.current_player) is None
-            preview_active = self.ui_state.draw_preview_inserted_cards is not None
-            has_current_melds = bool(viewer.melds)
-            selected_cards = [
-                viewer.hand[idx] for idx in selected if idx < len(viewer.hand)
-            ]
-            needs_meld_selector = any(card.is_wild() for card in selected_cards)
-            self.draw_button.set_sensitive(
-                state.winner is None
-                and is_human_turn
-                and not state.turn_drawn
-                and not preview_active
-            )
-            self.pickup_button.set_sensitive(
-                state.winner is None
-                and is_human_turn
-                and not state.turn_drawn
-                and bool(selected)
-                and not preview_active
-            )
-            self.meld_button.set_sensitive(
-                state.winner is None
-                and is_human_turn
-                and state.turn_drawn
-                and bool(selected)
-                and not preview_active
-            )
-            self.add_button.set_sensitive(
-                state.winner is None
-                and is_human_turn
-                and state.turn_drawn
-                and bool(selected)
-                and has_current_melds
-                and not preview_active
-            )
-            self.discard_button.set_sensitive(
-                state.winner is None
-                and is_human_turn
-                and state.turn_drawn
-                and len(selected) == 1
-                and not preview_active
-            )
-            self.deselect_all_button.set_sensitive(len(selected) > 1)
-            self.next_round_button.set_sensitive(state.winner is not None)
-            self.meld_selector.set_sensitive(
-                is_human_turn
-                and has_current_melds
-                and needs_meld_selector
-                and not preview_active
-            )
+            self.renderer.refresh_controls()
 
         def _refresh(self) -> None:
-            self._refresh_summary()
-            self._refresh_hand()
-            self._refresh_melds()
-            self._refresh_controls()
-            self._update_stats_display()
+            self.renderer.refresh()
 
         def _run_action(self, callback) -> None:
             self._cancel_draw_preview()
@@ -901,7 +529,9 @@ def main(argv: list[str] | None = None) -> int:
             self._run_action(lambda: self.engine.discard(indexes[0]))
 
         def _on_next_round(self, _button: Gtk.Button) -> None:
-            self.ui_state.last_winner = None  # Reset winner tracking when moving to next round
+            self.ui_state.last_winner = (
+                None  # Reset winner tracking when moving to next round
+            )
             self._run_action(self.engine.next_round)
 
     class CanastaApplication(Gtk.Application):

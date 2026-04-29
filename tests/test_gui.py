@@ -21,6 +21,12 @@ class TestGUIEntryPoint:
 
         assert True
 
+    def test_extracted_gui_helpers_are_importable(self):
+        """Verify deferred-import helper modules can be imported without GTK startup."""
+        from canasta.gui import bot_runner, renderer  # noqa: F401
+
+        assert True
+
 
 class TestParseArgs:
     def test_defaults_to_random_north_and_human_south(self):
