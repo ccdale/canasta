@@ -3,7 +3,7 @@
 ## Current Status
 - Repository: /home/chris/src/canasta
 - Package: canasta
-- Current version: 1.4.6
+- Current version: 1.4.7
 - Python: >=3.12
 - Environment/tooling: uv-managed project
 - CLI entry point: canasta = canasta.cli:main
@@ -88,6 +88,16 @@ Goal: reduce src/canasta/gui/main.py further by extracting rendering and bot aut
 2. Add/update GUI tests for any moved helper behavior where practical.
 3. Extract bot runner second (timer/callback behavior).
 4. Re-run full checks and desktop entry command variants.
+
+#### Post-Phase-3 usability follow-up
+- Improve discard-pile pickup interaction for human players.
+- Current flow requires preselecting matching hand cards before pressing Pickup.
+- Desired flow:
+  - User clicks the discard pile to begin pickup.
+  - UI auto-selects the same-ranked cards in the player's hand that correspond to the top discard.
+  - If the pickup is legal and unambiguous, continue with a minimal confirmation/action step.
+  - If this would be the player's opening meld and 50 points are not yet met, prompt the player to select an additional rank/cards to complete a legal opening meld.
+- Recommended implementation timing: after Phase 3, once rendering and event-handling responsibilities are extracted and stabilized.
 
 ### Phase 4 (planned)
 Goal: strengthen bot play toward effectively unbeatable performance for strong human players, while exposing a single, continuous strength control.
