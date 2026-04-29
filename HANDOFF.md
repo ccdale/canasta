@@ -54,9 +54,25 @@
 - **Linting**: Ruff integrated for code quality (`uv run ruff check .`).
 - **Documentation**: 4 sequential doc files in `docs/`, README, rules.md.
 
-## GUI Refactoring Opportunity
+## GUI Refactoring Progress
 
-The main `gui.py` file is currently **~1300 lines** with many responsibilities mixed together, making it difficult to read and maintain. Below is a proposed modularization strategy:
+### ✅ Phase 1 Complete (v1.4.2)
+
+Extracted four low-risk utility modules from monolithic gui.py:
+
+- **gui/bootstrap.py** (92 lines): Python discovery, argument parsing, system Python re-execution
+- **gui/persistence.py** (144 lines): Game state/stats serialization, save/load logic
+- **gui/utilities.py** (76 lines): Card formatting, meld manipulation, sorting
+- **gui/widgets.py** (103 lines): GTK4 widget builders for cards and piles
+
+Result: **gui/main.py** reduced to ~1,031 lines (from ~1,300), maintaining 100% backward compatibility.
+
+Benefits realized:
+- Each module has a single clear responsibility
+- `persistence.py` is now independently testable
+- `utilities.py` functions are reusable without GTK dependency
+- Bootstrap code isolated from UI logic
+- Easier to navigate and understand GUI architecture
 
 ### Current Structure Issues
 The `CanastaWindow` class mixes:
