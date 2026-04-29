@@ -802,7 +802,8 @@ def main(argv: list[str] | None = None) -> int:
             btn_row.append(resume_btn)
 
             box.append(btn_row)
-            dialog.present()
+            # Defer dialog presentation until after main window is realized
+            GLib.idle_add(lambda: dialog.present() or False)
 
         def _show_new_game_dialog(self, _button: Gtk.Button) -> None:
             dialog = Gtk.Window()
