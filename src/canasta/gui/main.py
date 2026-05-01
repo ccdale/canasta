@@ -12,13 +12,18 @@ from canasta.card_assets import asset_dir
 from canasta.engine import CanastaEngine
 from canasta.gui.bootstrap import parse_args, reexec_with_system_python
 from canasta.gui.bot_runner import BotRunner, set_glib_import
-from canasta.gui.dialogs import create_new_game_dialog, create_resume_game_dialog
 from canasta.gui.layout import build_game_layout
+from canasta.gui.lifecycle import (
+    check_saved_game_on_startup,
+    initial_status_message,
+    load_saved_game,
+    reset_game,
+    run_action,
+    show_new_game_dialog,
+)
 from canasta.gui.persistence import (
     get_version,
-    load_game,
     load_game_stats,
-    save_game,
 )
 from canasta.gui.renderer import GameRenderer
 from canasta.gui.renderer import set_gtk_imports as set_renderer_gtk_imports
@@ -178,71 +183,19 @@ def main(argv: list[str] | None = None) -> int:
             return self.bot_runner.play_one_turn()
 
         def _reset_game(self, north: str, south: str, bot_seed: int) -> None:
-            self._cancel_bot_timer()
-            self._cancel_draw_preview()
-            self._north = north
-            self._south = south
-            self._bot_seed = bot_seed
-            self.controllers = {
-                PlayerId.NORTH: (
-                    build_bot(north, seed=bot_seed + 1) if north != "human" else None
-                ),
-                PlayerId.SOUTH: (
-                    build_bot(south, seed=bot_seed + 2) if south != "human" else None
-                ),
-            }
-            self.engine = CanastaEngine()
-            self.ui_state.reset_selection()
-            self.ui_state.last_winner = None  # Reset winner tracking for new game
-            self._set_status(self._initial_status_message())
-            self._refresh()
-            # Auto-save newly started game
-            save_game(self.engine.state)
-            self._maybe_play_bot_turn()
+            reset_game(self, north, south, bot_seed)
 
         def _load_saved_game(self) -> None:
-            """Load and restore a previously saved game."""
-            saved_state = load_game()
-            if saved_state is None:
-                self._set_status("error: could not load saved game")
-                return
-
-            self._cancel_bot_timer()
-            self._cancel_draw_preview()
-            # Preserve current controller setup since we don't store it
-            self.engine.state = saved_state
-            self.ui_state.reset_selection()
-            self.ui_state.last_winner = None
-            self._set_status("Game restored from save")
-            self._refresh()
-            self._maybe_play_bot_turn()
+            load_saved_game(self)
 
         def _check_saved_game_on_startup(self) -> None:
-            """Check for saved game on startup and offer to resume if one exists."""
-            create_resume_game_dialog(
-                self,
-                on_resume=self._load_saved_game,
-                on_new_game=self._show_new_game_dialog,
-            )
+            check_saved_game_on_startup(self, self._show_new_game_dialog)
 
         def _show_new_game_dialog(self, _button: Gtk.Button) -> None:
-            create_new_game_dialog(
-                self,
-                self._north,
-                self._south,
-                self._bot_seed,
-                _BOT_CHOICES,
-                self._reset_game,
-            )
+            show_new_game_dialog(self, _BOT_CHOICES, self._reset_game)
 
         def _initial_status_message(self) -> str:
-            if not self.assets_root.exists():
-                return (
-                    f"Card images not found at {self.assets_root}. "
-                    "Using text fallback. Symlink ~/.local/share/canasta to your card images."
-                )
-            controllers_desc = f"north={self._north}  south={self._south}"
-            return f"Assets: {self.assets_root}  |  {controllers_desc}"
+            return initial_status_message(self)
 
         def _clear_box(self, box: Gtk.Widget) -> None:
             child = box.get_first_child()
@@ -286,17 +239,7 @@ def main(argv: list[str] | None = None) -> int:
             self.renderer.refresh()
 
         def _run_action(self, callback) -> None:
-            self._cancel_draw_preview()
-            try:
-                result = callback()
-                self.ui_state.selected_hand_indexes.clear()
-                self._set_status(result.message)
-            except RuleError as exc:
-                self._set_status(f"error: {exc}")
-            self._refresh()
-            # Auto-save game state after each action
-            save_game(self.engine.state)
-            self._maybe_play_bot_turn()
+            run_action(self, callback)
 
         def _on_hand_toggled(self, button: Gtk.ToggleButton, index: int) -> None:
             if button.get_active():
