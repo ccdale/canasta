@@ -1,6 +1,6 @@
 [project]
 name = "canasta"
-version = "2.0.7"
+version = "2.0.8"
 description = "Learn-by-building standalone Canasta in Python"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -17,6 +17,7 @@ dev = [
 [project.scripts]
 canasta = "canasta.cli:main"
 canasta-gui = "canasta.gui:main"
+canasta-ladder = "canasta.bot_ladder:main"
 
 [build-system]
 requires = ["hatchling>=1.27.0"]
