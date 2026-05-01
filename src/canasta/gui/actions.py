@@ -122,7 +122,12 @@ def on_discard_pile_clicked(window) -> None:
     """
     state = window.engine.state
     is_human_turn = window.controllers.get(state.current_player) is None
-    if not is_human_turn or state.turn_drawn or not state.discard or state.winner is not None:
+    if (
+        not is_human_turn
+        or state.turn_drawn
+        or not state.discard
+        or state.winner is not None
+    ):
         return
 
     top = state.discard[-1]

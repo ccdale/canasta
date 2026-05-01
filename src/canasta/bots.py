@@ -67,9 +67,7 @@ def play_bot_turn(engine: CanastaEngine, bot: TurnBot) -> list[str]:
             # If cards match an existing meld's rank, extend it rather than
             # creating a duplicate meld of the same rank.
             chosen_cards = [hand[i] for i in meld_indexes]
-            natural_rank = next(
-                (c.rank for c in chosen_cards if not c.is_wild()), None
-            )
+            natural_rank = next((c.rank for c in chosen_cards if not c.is_wild()), None)
             existing_idx = next(
                 (
                     idx
