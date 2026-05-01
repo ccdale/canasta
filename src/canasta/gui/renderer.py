@@ -230,11 +230,11 @@ class GameRenderer:
                 key=lambda item: rank_sort_key(item[1].natural_rank),
             )
 
-            for original_idx, meld in sorted_melds:
+            for display_idx, (original_idx, meld) in enumerate(sorted_melds):
                 if player_id == viewer:
-                    self.window.meld_model.append(f"Meld {original_idx}")
+                    self.window.meld_model.append(f"Meld {display_idx}")
                     self.window.ui_state.meld_index_mapping.append(original_idx)
-                title = f"Meld {original_idx}"
+                title = f"Meld {display_idx}"
                 if meld.is_canasta:
                     title += " (Canasta)"
                 frame = Gtk.Frame(label=title)
