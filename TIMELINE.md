@@ -1,5 +1,8 @@
 # Canasta — Development Timeline (3 April 2026)
 
+Note: this file is a historical timeline for the initial build day.
+For current baseline status and next steps, refer to `HANDOFF.md`.
+
 All work below took place on 3 April 2026 in a single session, starting from
 scratch and ending with a fully playable GTK4 GUI.
 

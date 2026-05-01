@@ -1,4 +1,4 @@
-# Bot Strength Strategy (Phase 4 Precursor)
+# Bot Strength Strategy (Phase 4)
 
 ## Purpose
 This document describes a practical plan for evolving the existing bots into a single strength-scaled system, where `strength=1` behaves close to current baseline and `strength=100` is very hard to beat for most players.
@@ -112,8 +112,11 @@ Use interpolation and clamped ranges to avoid sudden spikes in behavior.
 - If budget exhausted, return best-so-far candidate from the current frontier.
 
 ## Validation Plan
+
+Use **match results** (to 5000 points) as the primary difficulty signal rather than single-round outcomes.
 1. Ladder Evaluation
 - Run bot-vs-bot matrices across representative strengths (e.g., 1, 20, 40, 60, 80, 100).
+- Evaluate using match win rate, average rounds per match, and average final margin.
 - Require monotonic trend (allowing small statistical noise).
 
 2. Regression Safety

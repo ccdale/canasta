@@ -110,7 +110,7 @@ def test_cards_returned_to_hand_on_failure(self):
 
 ---
 
-## Coverage summary (144 tests)
+## Coverage summary (193 tests)
 
 | Area | Tests | What they verify |
 |------|-------|-----------------|
@@ -122,7 +122,7 @@ def test_cards_returned_to_hand_on_failure(self):
 | `can_add_cards_to_meld` | 3 | valid add, rank mismatch, wild-cap violation after add |
 | `can_discard` | 5 | red 3♥, red 3♦, black three, regular card, wild two |
 | discard pile freeze helpers | 10 | freeze-card detection, pile frozen/unfrozen status, frozen pickup allowed/rejected cases |
-| `opening_meld_value` | 4 | naturals only, wilds excluded, constant value, meets minimum |
+| `opening_meld_value` and opening-threshold mapping | 9 | naturals only, wilds excluded, score-based opening minimum mapping (15/50/90/120), and threshold checks |
 | `hand_penalty` | 3 | empty hand, same values as `hand_score`, regular-card examples |
 | `hand_score` / `meld_score` | 8 | individual card values, mixed hand, canasta bonus |
 | Engine init | 5 | hand sizes, stock size, discard pile, starting player, draw flag |
@@ -136,7 +136,7 @@ def test_cards_returned_to_hand_on_failure(self):
 | Opening meld (engine) | 6 | below minimum rejected, cards restored, exactly at minimum, above minimum, wilds excluded from value, subsequent meld exempt |
 | Red threes (engine) | 9 | auto-meld at init, hand size preserved, mid-turn trigger, message, `red_three_score` (1/2/4), score integration |
 | Winner detection | 3 | winner set only when hand empties with a canasta; winning discard keeps turn on winner |
-| Multi-round lifecycle | 6 | initial round number, next-round gate, actions blocked after winner, score banking, round reset, winner starts next round |
+| Multi-round lifecycle and match end | 10 | initial round number, next-round gate, actions blocked after winner, score banking, round reset, winner starts next round, 5000-point match end, and same-round over-5000 tiebreak |
 | Bot behavior | 16 | bot factory wiring (`random`/`greedy`/`safe`/`aggro`/`planner`), random legal turn completion, greedy opening meld preference, safe conservative meld behavior, aggro large-meld/high-point discard bias, and planner balanced meld/discard heuristics |
 
 ---

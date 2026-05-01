@@ -54,10 +54,10 @@ The window is divided into a few main areas:
   - Discard count and top discard card
 - Controls row:
   - `Draw`
-  - `Pickup Selected`
-  - `Meld Selected`
+  - `Pickup`
+  - `Meld`
   - `Add To Meld`
-  - `Discard Selected`
+  - `Discard`
   - `Next Round`
   - Meld selector dropdown
   - `New Game…`
@@ -104,17 +104,18 @@ The GUI enables and disables controls depending on what is legal at that point i
 - You may only draw once per turn.
 - Red threes drawn from the stock are auto-melded immediately.
 
-### Pickup Selected
+### Pickup
 
 - Select the hand cards you want to combine with the top discard.
-- Press `Pickup Selected` to take the discard pile.
+- Press `Pickup` to take the discard pile.
 - If legal, the selected cards plus the top discard form a meld.
 - The rest of the discard pile goes into your hand.
+- You can also click the top discard card directly to auto-select matching naturals and attempt pickup.
 
-### Meld Selected
+### Meld
 
 - Select cards from your hand.
-- Press `Meld Selected` to create a new meld.
+- Press `Meld` to create a new meld.
 - A meld must contain at least 3 cards.
 - A meld must contain at least 1 natural card.
 - Within a single meld, all natural cards must be the same rank.
@@ -129,10 +130,10 @@ The GUI enables and disables controls depending on what is legal at that point i
 - If any selected card is wild, use the dropdown to choose the destination meld first.
 - Press `Add To Meld`.
 
-### Discard Selected
+### Discard
 
 - Select exactly one card.
-- Press `Discard Selected` to end your turn.
+- Press `Discard` to end your turn.
 - Red threes cannot be discarded.
 
 ### Next Round
@@ -206,7 +207,12 @@ When the discard pile is frozen:
 
 ## Opening Meld Requirement
 
-A side's first meld(s) of the round must total at least 50 points using natural cards only.
+A side's first meld(s) of the round must meet a threshold based on that side's current match score (naturals only):
+
+- score < 0: 15 points
+- score < 1500: 50 points
+- score < 3000: 90 points
+- score >= 3000: 120 points
 
 This implementation now allows split opening melds across multiple ranks in one action, provided each rank forms its own valid meld. Example:
 
@@ -216,7 +222,7 @@ This is treated as two melds in a single opening play.
 
 If a split opening selection includes wild cards, it is rejected in one action because the target assignment of the wild cards would be ambiguous.
 
-## Going Out
+## Going Out And Match End
 
 A round ends when a player empties their hand by making legal plays and discarding appropriately.
 
@@ -227,12 +233,16 @@ At round end:
 - Cards left in hand count as penalties
 - Red threes score according to the current rules implementation
 
+A match continues across rounds until at least one side reaches 5000 total points at round end.
+If both sides pass 5000 in the same round, the higher total wins the match.
+
 ## Scoring Notes
 
 This implementation includes:
 
 - Round score calculation
 - Total score accumulation across rounds
+- Match winner detection at 5000 total points
 - Hand penalties at round end
 - Canasta bonus for melds with 7 or more cards
 

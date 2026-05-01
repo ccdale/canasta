@@ -9,6 +9,8 @@ Standalone Canasta project built to teach game architecture incrementally.
 - CLI adapter for interactive play.
 - GTK4 GUI adapter for local play.
 - Player hands auto-sort by rank/suit for stable command indexing.
+- Match play: rounds continue until a side reaches 5000 total points.
+- Opening meld minimum scales by current match score (15/50/90/120).
 
 ## Quick Start
 

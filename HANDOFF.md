@@ -3,19 +3,20 @@
 ## Current Status
 - Repository: /home/chris/src/canasta
 - Package: canasta
-- Current version: 2.0.0
+- Current version: 2.0.3
 - Python: >=3.12
 - Environment/tooling: uv-managed project
 - CLI entry point: canasta = canasta.cli:main
 - GUI entry point: canasta-gui = canasta.gui:main
-- Test status: 181 tests passing
+- Test status: 193 tests passing
 
 ## What Is Complete
 
 ### Core Game
 - Full game model/rules/engine implementation for standalone Canasta.
-- Multi-round scoring and winner detection.
-- Discard freeze logic, pickup validation, opening meld minimum, red-three handling.
+- Multi-round scoring with match-end detection.
+- Discard freeze logic, pickup validation, dynamic opening meld minimums, red-three handling.
+- Match play to 5000 points (highest total wins if both pass 5000 in the same round).
 
 ### Bots
 - Bot variants implemented: random, greedy, safe, aggro, planner.
@@ -61,6 +62,8 @@
 - 6a612f7: Added clickable discard-pile pickup UX improvement.
 - 6c663fa: Fixed bot meld routing (extends existing same-rank meld).
 - 5909d8e: Release v2.0.0 baseline.
+- ede30fc: Added Phase 4 bot-strength strategy document.
+- 13a26ea: Added match thresholds (15/50/90/120) and match-end logic.
 
 ## Remaining Work
 

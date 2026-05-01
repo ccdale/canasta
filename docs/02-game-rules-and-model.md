@@ -80,11 +80,14 @@ A **meld** is a set of cards played face-up in front of a player.
 
 ### Opening meld minimum
 
-A player’s **first meld** of the round must have enough natural-card point value to meet the opening threshold.
+A player’s **first meld** of the round must have enough natural-card point value to meet the opening threshold based on that player's current match score.
 
-| Constant | Value |
-|----------|-------|
-| `OPENING_MELD_MINIMUM` | 50 points |
+| Player's current score | Opening meld minimum |
+|------------------------|----------------------|
+| `< 0` | 15 points |
+| `< 1500` | 50 points |
+| `< 3000` | 90 points |
+| `>= 3000` | 120 points |
 
 `opening_meld_value(cards)` sums only the natural cards (wilds do **not** count).
 If the value falls below the threshold the meld is rejected with a `RuleError` that includes the actual and required scores.
@@ -130,7 +133,7 @@ The current implementation supports a simplified discard-pile pickup rule:
 1. The pickup must be the turn's draw action.
 2. The top discard must be used immediately in a **new meld**.
 3. The selected hand cards plus the top discard must form a valid meld under the normal meld rules.
-4. If this is the player's opening meld, the usual `OPENING_MELD_MINIMUM` still applies.
+4. If this is the player's opening meld, the dynamic opening threshold for that player's current score still applies.
 5. After the meld is created, the rest of the discard pile is added to the player's hand.
 
 ### Discard pile freeze
@@ -233,6 +236,14 @@ After a player discards, `_check_winner` tests:
 
 Both conditions must hold. If so, `GameState.winner` is set to that player's `PlayerId`. The round then stops accepting further play actions until `next_round()` is called or the user quits.
 
+## Match condition
+
+At round end, totals are checked against the match target of 5000 points.
+
+- If one side reaches at least 5000, that side wins the match.
+- If both reach at least 5000 in the same round, the higher total wins.
+- Once match winner is decided, `next_round()` is rejected.
+
 ---
 
 ## Known gaps in rule coverage
@@ -242,11 +253,12 @@ The following standard Canasta rules are not yet encoded:
 | Rule | Status |
 |------|--------|
 | Red three auto-meld when drawn | ✓ Implemented |
-| Opening meld minimum (50 pts natural) | ✓ Implemented |
+| Opening meld minimum (score-scaled) | ✓ Implemented |
 | Picking up the discard pile | ✓ Implemented |
 | Discard pile freeze | ✓ Implemented |
 | Hand-card penalties at round end | ✓ Implemented |
 | Multi-round scoring | ✓ Implemented |
+| Match play to 5000 with tiebreak by higher total | ✓ Implemented |
 
 ---
 
