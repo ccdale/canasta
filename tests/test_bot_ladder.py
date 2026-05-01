@@ -1,5 +1,7 @@
 """Tests for canasta.bot_ladder."""
 
+import json
+
 from canasta.bot_ladder import LadderSide, run_ladder, simulate_match
 from canasta.model import PlayerId
 
@@ -55,3 +57,49 @@ def test_run_ladder_is_deterministic_for_same_seed() -> None:
     )
 
     assert summary1 == summary2
+
+
+def test_cli_accepts_compact_side_specs(capsys) -> None:
+    from canasta.bot_ladder import main
+
+    code = main(
+        [
+            "safe:30",
+            "safe:80",
+            "-m",
+            "2",
+            "-s",
+            "3",
+            "--max-rounds",
+            "2",
+            "--max-turns-per-round",
+            "80",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "Ladder: safe:30 vs safe:80" in captured.out
+
+
+def test_cli_accepts_json_config_file(tmp_path, capsys) -> None:
+    from canasta.bot_ladder import main
+
+    config = {
+        "side_a": "greedy:25",
+        "side_b": {"kind": "greedy", "strength": 90},
+        "matches": 2,
+        "seed": 5,
+        "max_rounds": 2,
+        "max_turns_per_round": 80,
+        "swap_seats": False,
+    }
+    config_path = tmp_path / "ladder.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    code = main(["--config", str(config_path)])
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "Ladder: greedy:25 vs greedy:90" in captured.out
+    assert "swap seats: False" in captured.out

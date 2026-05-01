@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 from canasta.bots import BotKind, build_bot, play_bot_turn
 from canasta.engine import CanastaEngine
@@ -58,7 +60,11 @@ def simulate_match(
     while engine.match_winner() is None and engine.state.round_number <= max_rounds:
         turns = 0
         while engine.state.winner is None and turns < max_turns_per_round:
-            bot = north_bot if engine.state.current_player == PlayerId.NORTH else south_bot
+            bot = (
+                north_bot
+                if engine.state.current_player == PlayerId.NORTH
+                else south_bot
+            )
             try:
                 play_bot_turn(engine, bot)
             except RuleError:
@@ -192,12 +198,27 @@ def _resolve_stalled_round(engine: CanastaEngine) -> None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a Canasta bot-vs-bot ladder")
-    parser.add_argument("--side-a-kind", default="safe", choices=_bot_kind_choices())
-    parser.add_argument("--side-a-strength", type=int, default=30)
-    parser.add_argument("--side-b-kind", default="safe", choices=_bot_kind_choices())
-    parser.add_argument("--side-b-strength", type=int, default=80)
-    parser.add_argument("--matches", type=int, default=20)
-    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument(
+        "side_a",
+        nargs="?",
+        help="Optional shorthand side A spec in the form kind:strength (example: safe:30)",
+    )
+    parser.add_argument(
+        "side_b",
+        nargs="?",
+        help="Optional shorthand side B spec in the form kind:strength (example: safe:80)",
+    )
+    parser.add_argument(
+        "--side-a-kind", "-ak", default="safe", choices=_bot_kind_choices()
+    )
+    parser.add_argument("--side-a-strength", "-as", type=int, default=30)
+    parser.add_argument(
+        "--side-b-kind", "-bk", default="safe", choices=_bot_kind_choices()
+    )
+    parser.add_argument("--side-b-strength", "-bs", type=int, default=80)
+    parser.add_argument("--config", "-c", help="JSON config file for ladder options")
+    parser.add_argument("--matches", "-m", type=int, default=20)
+    parser.add_argument("--seed", "-s", type=int, default=1)
     parser.add_argument("--no-swap-seats", action="store_true")
     parser.add_argument("--max-rounds", type=int, default=16)
     parser.add_argument("--max-turns-per-round", type=int, default=400)
@@ -213,16 +234,130 @@ def _validate_positive(parser: argparse.ArgumentParser, value: int, name: str) -
         parser.error(f"{name} must be greater than 0")
 
 
+def _validate_strength(parser: argparse.ArgumentParser, value: int, name: str) -> None:
+    if value < 1 or value > 100:
+        parser.error(f"{name} must be between 1 and 100")
+
+
+def _parse_side_spec(
+    parser: argparse.ArgumentParser, value: str, name: str
+) -> LadderSide:
+    if ":" not in value:
+        parser.error(f"{name} must be in kind:strength format (example: safe:30)")
+    kind_part, strength_part = value.split(":", 1)
+    kind = kind_part.strip().lower()
+    if kind not in _bot_kind_choices():
+        parser.error(f"{name} kind must be one of: {', '.join(_bot_kind_choices())}")
+    try:
+        strength = int(strength_part)
+    except ValueError:
+        parser.error(f"{name} strength must be an integer")
+    _validate_strength(parser, strength, f"{name} strength")
+    return LadderSide(kind=kind, strength=strength)
+
+
+def _load_json_config(
+    parser: argparse.ArgumentParser, config_path: str
+) -> dict[str, object]:
+    path = Path(config_path)
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        parser.error(f"could not read config file {config_path}: {exc}")
+
+    try:
+        loaded = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        parser.error(f"invalid JSON in config file {config_path}: {exc}")
+
+    if not isinstance(loaded, dict):
+        parser.error("config root must be a JSON object")
+    return loaded
+
+
+def _resolve_side(
+    parser: argparse.ArgumentParser,
+    cli_spec: str | None,
+    cli_kind: str,
+    cli_strength: int,
+    cfg: dict[str, object],
+    cfg_key: str,
+    side_name: str,
+) -> LadderSide:
+    if cli_spec:
+        return _parse_side_spec(parser, cli_spec, side_name)
+
+    cfg_entry = cfg.get(cfg_key)
+    if isinstance(cfg_entry, str):
+        return _parse_side_spec(parser, cfg_entry, side_name)
+
+    if isinstance(cfg_entry, dict):
+        kind_obj = cfg_entry.get("kind")
+        strength_obj = cfg_entry.get("strength")
+        if not isinstance(kind_obj, str):
+            parser.error(f"{cfg_key}.kind in config must be a string")
+        if not isinstance(strength_obj, int):
+            parser.error(f"{cfg_key}.strength in config must be an integer")
+        kind = kind_obj.lower()
+        if kind not in _bot_kind_choices():
+            parser.error(
+                f"{cfg_key}.kind must be one of: {', '.join(_bot_kind_choices())}"
+            )
+        _validate_strength(parser, strength_obj, f"{cfg_key}.strength")
+        return LadderSide(kind=kind, strength=strength_obj)
+
+    _validate_strength(parser, cli_strength, side_name)
+    return LadderSide(kind=cli_kind, strength=cli_strength)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
+    config: dict[str, object] = {}
+    if args.config:
+        config = _load_json_config(parser, args.config)
+
+    config_matches = config.get("matches")
+    if isinstance(config_matches, int):
+        args.matches = config_matches
+    config_seed = config.get("seed")
+    if isinstance(config_seed, int):
+        args.seed = config_seed
+    config_max_rounds = config.get("max_rounds")
+    if isinstance(config_max_rounds, int):
+        args.max_rounds = config_max_rounds
+    config_max_turns = config.get("max_turns_per_round")
+    if isinstance(config_max_turns, int):
+        args.max_turns_per_round = config_max_turns
+    config_swap = config.get("swap_seats")
+    if isinstance(config_swap, bool):
+        args.no_swap_seats = not config_swap
+
     _validate_positive(parser, args.matches, "--matches")
     _validate_positive(parser, args.max_rounds, "--max-rounds")
     _validate_positive(parser, args.max_turns_per_round, "--max-turns-per-round")
+    _validate_strength(parser, args.side_a_strength, "--side-a-strength")
+    _validate_strength(parser, args.side_b_strength, "--side-b-strength")
 
-    side_a = LadderSide(kind=args.side_a_kind, strength=args.side_a_strength)
-    side_b = LadderSide(kind=args.side_b_kind, strength=args.side_b_strength)
+    side_a = _resolve_side(
+        parser=parser,
+        cli_spec=args.side_a,
+        cli_kind=args.side_a_kind,
+        cli_strength=args.side_a_strength,
+        cfg=config,
+        cfg_key="side_a",
+        side_name="side_a",
+    )
+    side_b = _resolve_side(
+        parser=parser,
+        cli_spec=args.side_b,
+        cli_kind=args.side_b_kind,
+        cli_strength=args.side_b_strength,
+        cfg=config,
+        cfg_key="side_b",
+        side_name="side_b",
+    )
     summary = run_ladder(
         side_a=side_a,
         side_b=side_b,
@@ -233,12 +368,16 @@ def main(argv: list[str] | None = None) -> int:
         max_turns_per_round=args.max_turns_per_round,
     )
 
-    side_a_desc = f"{args.side_a_kind}:{args.side_a_strength}"
-    side_b_desc = f"{args.side_b_kind}:{args.side_b_strength}"
+    side_a_desc = f"{side_a.kind}:{side_a.strength}"
+    side_b_desc = f"{side_b.kind}:{side_b.strength}"
     print(f"Ladder: {side_a_desc} vs {side_b_desc}")
     print(f"Matches: {summary.matches} (swap seats: {not args.no_swap_seats})")
-    print(f"Wins: side A {summary.side_a_wins} | side B {summary.side_b_wins} | ties {summary.ties}")
-    print(f"Avg total score: side A {summary.side_a_avg_total:.1f} | side B {summary.side_b_avg_total:.1f}")
+    print(
+        f"Wins: side A {summary.side_a_wins} | side B {summary.side_b_wins} | ties {summary.ties}"
+    )
+    print(
+        f"Avg total score: side A {summary.side_a_avg_total:.1f} | side B {summary.side_b_avg_total:.1f}"
+    )
     print(f"Stalled rounds resolved: {summary.stalled_rounds}")
     return 0
 
