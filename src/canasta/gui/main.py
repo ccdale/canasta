@@ -10,6 +10,16 @@ from canasta.bot_strategies import TurnBot
 from canasta.bots import build_bot
 from canasta.card_assets import asset_dir
 from canasta.engine import CanastaEngine
+from canasta.gui.actions import (
+    on_add_to_meld,
+    on_deselect_all,
+    on_discard,
+    on_draw,
+    on_hand_toggled,
+    on_meld,
+    on_next_round,
+    on_pickup,
+)
 from canasta.gui.bootstrap import parse_args, reexec_with_system_python
 from canasta.gui.bot_runner import BotRunner, set_glib_import
 from canasta.gui.layout import build_game_layout
@@ -28,12 +38,8 @@ from canasta.gui.persistence import (
 from canasta.gui.renderer import GameRenderer
 from canasta.gui.renderer import set_gtk_imports as set_renderer_gtk_imports
 from canasta.gui.state import UIState
-from canasta.gui.utilities import (
-    new_cards_in_hand,
-    resolve_target_meld_index,
-)
 from canasta.gui.widgets import set_gtk_imports
-from canasta.model import PlayerId, RuleError
+from canasta.model import PlayerId
 
 _BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner"]
 
@@ -242,93 +248,28 @@ def main(argv: list[str] | None = None) -> int:
             run_action(self, callback)
 
         def _on_hand_toggled(self, button: Gtk.ToggleButton, index: int) -> None:
-            if button.get_active():
-                self.ui_state.selected_hand_indexes.add(index)
-            else:
-                self.ui_state.selected_hand_indexes.discard(index)
-            self._refresh_summary()
-            self._refresh_controls()
+            on_hand_toggled(self, button, index)
 
         def _on_deselect_all(self, _button: Gtk.Button) -> None:
-            self.ui_state.selected_hand_indexes.clear()
-            self._refresh_hand()
-            self._refresh_summary()
-            self._refresh_controls()
+            on_deselect_all(self)
 
         def _on_draw(self, _button: Gtk.Button) -> None:
-            self._cancel_draw_preview()
-            before_hand = list(self.engine.current_hand())
-            try:
-                result = self.engine.draw_stock()
-                self.ui_state.selected_hand_indexes.clear()
-                self._set_status(result.message)
-            except RuleError as exc:
-                self._set_status(f"error: {exc}")
-                self._refresh()
-                self._maybe_play_bot_turn()
-                return
-
-            after_hand = list(self.engine.current_hand())
-            inserted = new_cards_in_hand(before_hand, after_hand)
-            if inserted:
-                # Show newly inserted cards at draw/pickup position briefly.
-                self.ui_state.draw_preview_base_hand = before_hand
-                self.ui_state.draw_preview_inserted_cards = inserted
-                hadj = self.hand_scroll.get_hadjustment()
-                self.ui_state.draw_preview_restore_scroll = hadj.get_value()
-                self.ui_state.draw_preview_timeout_id = GLib.timeout_add(
-                    1000, self._clear_draw_preview
-                )
-
-            self._refresh()
-            if inserted:
-                hadj = self.hand_scroll.get_hadjustment()
-                hadj.set_value(max(0.0, hadj.get_upper() - hadj.get_page_size()))
-            self._maybe_play_bot_turn()
+            on_draw(self, GLib)
 
         def _on_pickup(self, _button: Gtk.Button) -> None:
-            indexes = self._selected_indexes()
-            self._run_action(lambda: self.engine.pickup_discard(indexes))
+            on_pickup(self)
 
         def _on_meld(self, _button: Gtk.Button) -> None:
-            indexes = self._selected_indexes()
-            self._run_action(lambda: self.engine.create_meld(indexes))
+            on_meld(self)
 
         def _on_add_to_meld(self, _button: Gtk.Button) -> None:
-            indexes = self._selected_indexes()
-            current = self.engine.state.players[self.engine.state.current_player]
-            cards = [current.hand[idx] for idx in indexes]
-            try:
-                meld_idx = resolve_target_meld_index(current.melds, cards)
-            except RuleError as exc:
-                self._set_status(f"error: {exc}")
-                self._refresh_controls()
-                return
-
-            if meld_idx is None:
-                dropdown_idx = self.meld_selector.get_selected()
-                if dropdown_idx >= len(self.ui_state.meld_index_mapping):
-                    self._set_status("error: select a meld first")
-                    self._refresh_controls()
-                    return
-                # Map dropdown index to actual meld index
-                meld_idx = self.ui_state.meld_index_mapping[dropdown_idx]
-
-            self._run_action(lambda: self.engine.add_to_meld(meld_idx, indexes))
+            on_add_to_meld(self)
 
         def _on_discard(self, _button: Gtk.Button) -> None:
-            indexes = self._selected_indexes()
-            if len(indexes) != 1:
-                self._set_status("error: select exactly one card to discard")
-                self._refresh_controls()
-                return
-            self._run_action(lambda: self.engine.discard(indexes[0]))
+            on_discard(self)
 
         def _on_next_round(self, _button: Gtk.Button) -> None:
-            self.ui_state.last_winner = (
-                None  # Reset winner tracking when moving to next round
-            )
-            self._run_action(self.engine.next_round)
+            on_next_round(self)
 
     class CanastaApplication(Gtk.Application):
         def __init__(self, args: argparse.Namespace) -> None:
