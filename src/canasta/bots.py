@@ -59,11 +59,29 @@ def play_bot_turn(engine: CanastaEngine, bot: TurnBot) -> list[str]:
     while True:
         player = engine.state.players[engine.state.current_player]
         opening_required = len(player.melds) == 0
-        meld_indexes = bot.choose_meld_indexes(engine.current_hand(), opening_required)
+        hand = engine.current_hand()
+        meld_indexes = bot.choose_meld_indexes(hand, opening_required)
         if meld_indexes is None:
             break
         try:
-            actions.append(engine.create_meld(meld_indexes).message)
+            # If cards match an existing meld's rank, extend it rather than
+            # creating a duplicate meld of the same rank.
+            chosen_cards = [hand[i] for i in meld_indexes]
+            natural_rank = next(
+                (c.rank for c in chosen_cards if not c.is_wild()), None
+            )
+            existing_idx = next(
+                (
+                    idx
+                    for idx, m in enumerate(player.melds)
+                    if m.natural_rank == natural_rank
+                ),
+                None,
+            )
+            if existing_idx is not None:
+                actions.append(engine.add_to_meld(existing_idx, meld_indexes).message)
+            else:
+                actions.append(engine.create_meld(meld_indexes).message)
         except RuleError:
             break
 
