@@ -158,6 +158,15 @@ class TestSafeBot:
         idxs = SafeBot(strength=80).choose_meld_indexes(hand, opening_required=False)
         assert idxs is not None
 
+    def test_greedy_high_strength_preserves_grouped_rank(self):
+        hand = [Card("8", "S"), Card("8", "H"), Card("9", "D")]
+
+        low_idx = GreedyBot(strength=1).choose_discard_index(hand)
+        high_idx = GreedyBot(strength=100).choose_discard_index(hand)
+
+        assert hand[low_idx].label() == "8S"
+        assert hand[high_idx].label() == "9D"
+
 
 class TestAggroBot:
     def test_aggro_bot_prefers_longer_meld(self):
@@ -176,6 +185,15 @@ class TestAggroBot:
         hand = [Card("A", "S"), Card("7", "H"), Card("K", "D")]
         idx = AggroBot().choose_discard_index(hand)
         assert hand[idx].label() == "AS"
+
+    def test_aggro_high_strength_avoids_wild_discard_when_possible(self):
+        hand = [Card("2", "S"), Card("A", "H"), Card("7", "D")]
+
+        low_idx = AggroBot(strength=1).choose_discard_index(hand)
+        high_idx = AggroBot(strength=90).choose_discard_index(hand)
+
+        assert hand[low_idx].label() == "2S"
+        assert hand[high_idx].label() == "AH"
 
 
 class TestPlannerBot:

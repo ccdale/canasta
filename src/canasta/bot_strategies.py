@@ -85,7 +85,32 @@ class GreedyBot:
         safe = [idx for idx, card in enumerate(hand) if can_discard(card)[0]]
         if not safe:
             raise RuleError("bot could not find a legal discard")
-        return min(safe, key=lambda idx: (hand_score([hand[idx]]), hand[idx].is_wild()))
+
+        rank_counts = _rank_counts(hand)
+        if self.strength < 34:
+            # Baseline: lowest immediate points, with weak wild-card protection.
+            return min(
+                safe,
+                key=lambda idx: (hand_score([hand[idx]]), hand[idx].is_wild()),
+            )
+
+        if self.strength < 67:
+            # Mid tier: avoid wilds first, then low points.
+            return min(
+                safe,
+                key=lambda idx: (hand[idx].is_wild(), hand_score([hand[idx]])),
+            )
+
+        # High tier: avoid wilds, preserve grouped ranks, then prefer freeze pressure.
+        def discard_key(idx: int) -> tuple[int, int, int, int]:
+            card = hand[idx]
+            wild_penalty = 1 if card.is_wild() else 0
+            grouped_penalty = 1 if rank_counts[card.rank] > 1 else 0
+            freeze_bonus = 0 if card.is_black_three() else 1
+            points = hand_score([card])
+            return (wild_penalty, grouped_penalty, freeze_bonus, points)
+
+        return min(safe, key=discard_key)
 
 
 @dataclass
@@ -170,8 +195,18 @@ class AggroBot:
         safe = [idx for idx, card in enumerate(hand) if can_discard(card)[0]]
         if not safe:
             raise RuleError("bot could not find a legal discard")
-        # Dump highest points first; prefer non-wild when tied.
-        return max(safe, key=lambda idx: (hand_score([hand[idx]]), hand[idx].is_wild()))
+
+        if self.strength < 40:
+            # Baseline aggro: dump highest points first; weak wild preservation.
+            return max(
+                safe,
+                key=lambda idx: (hand_score([hand[idx]]), hand[idx].is_wild()),
+            )
+
+        # Stronger aggro: still shed points, but avoid wild discards when possible.
+        non_wild = [idx for idx in safe if not hand[idx].is_wild()]
+        candidates = non_wild if non_wild else safe
+        return max(candidates, key=lambda idx: hand_score([hand[idx]]))
 
 
 @dataclass
@@ -208,20 +243,41 @@ class PlannerBot:
         for card in hand:
             rank_counts[card.rank] = rank_counts.get(card.rank, 0) + 1
 
-        def discard_key(idx: int) -> tuple[int, int, int, int]:
+        if self.strength < 34:
+
+            def discard_key(idx: int) -> tuple[int, int, int, int]:
+                card = hand[idx]
+                wild_penalty = 1 if card.is_wild() else 0
+                grouped_penalty = 1 if rank_counts[card.rank] > 1 else 0
+                freeze_bonus = 0 if card.is_black_three() else 1
+                points = hand_score([card])
+                return (wild_penalty, grouped_penalty, freeze_bonus, points)
+
+            return min(safe, key=discard_key)
+
+        def discard_key(idx: int) -> tuple[int, int, int, int, int]:
             card = hand[idx]
             # Keep wilds and keep pairs/triples for future melds when possible.
             wild_penalty = 1 if card.is_wild() else 0
             grouped_penalty = 1 if rank_counts[card.rank] > 1 else 0
+            singleton_bonus = 0 if rank_counts[card.rank] == 1 else 1
             freeze_bonus = 0 if card.is_black_three() else 1
             points = hand_score([card])
-            return (wild_penalty, grouped_penalty, freeze_bonus, points)
+            return (
+                wild_penalty,
+                grouped_penalty,
+                singleton_bonus,
+                freeze_bonus,
+                points,
+            )
 
         return min(safe, key=discard_key)
 
 
 def _eligible_natural_meld_candidates(
-    hand: list[Card], opening_required: bool, opening_minimum: int = OPENING_MELD_MINIMUM
+    hand: list[Card],
+    opening_required: bool,
+    opening_minimum: int = OPENING_MELD_MINIMUM,
 ) -> list[list[int]]:
     """Find all eligible natural card meld candidates in a hand.
 
@@ -316,3 +372,10 @@ def _opening_split_candidates(
 def _natural_density(cards: list[Card]) -> int:
     """Count natural cards in a list."""
     return sum(1 for card in cards if not card.is_wild())
+
+
+def _rank_counts(hand: list[Card]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for card in hand:
+        counts[card.rank] = counts.get(card.rank, 0) + 1
+    return counts
