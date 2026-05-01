@@ -21,6 +21,7 @@ from canasta.gui.actions import (
 from canasta.gui.bootstrap import parse_args, reexec_with_system_python
 from canasta.gui.bot_runner import BotRunner, set_glib_import
 from canasta.gui.layout import build_game_layout
+from canasta.gui.theme import install_css, set_gtk_imports as set_theme_gtk_imports
 from canasta.gui.lifecycle import (
     build_controllers,
     check_saved_game_on_startup,
@@ -41,37 +42,6 @@ from canasta.gui.widgets import set_gtk_imports
 from canasta.model import PlayerId
 
 _BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner"]
-
-# Green-felt table CSS matching patience/ui/theme.py style.
-_TABLE_CSS = """
-@media (prefers-color-scheme: light) {
-    .table-window {
-        background-color: #dce6d7;
-        background-image: linear-gradient(180deg, #edf3e9 0%, #dfe9d9 38%, #d3e0cd 100%);
-    }
-}
-@media (prefers-color-scheme: dark) {
-    .table-window {
-        background-color: #132219;
-        background-image: linear-gradient(180deg, #1b2d22 0%, #14251b 42%, #0e1b14 100%);
-    }
-}
-.section-label { font-weight: bold; }
-.hand-card {
-    padding: 2px;
-    min-width: 0;
-    min-height: 0;
-}
-.draw-preview-new {
-    border: 2px solid #f4b400;
-    border-radius: 8px;
-}
-.canasta-card-shell {
-    border: 2px solid #d4af37;
-    border-radius: 8px;
-    padding: 2px;
-}
-"""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -98,17 +68,9 @@ def main(argv: list[str] | None = None) -> int:
     # Initialize widget module with GTK imports
     set_gtk_imports(Gtk, Gdk, GdkPixbuf)
     set_renderer_gtk_imports(Gtk)
+    set_theme_gtk_imports(Gtk, Gdk)
     set_glib_import(GLib)
 
-    def _install_css() -> None:
-        display = Gdk.Display.get_default()
-        if display is None:
-            return
-        provider = Gtk.CssProvider()
-        provider.load_from_string(_TABLE_CSS)
-        Gtk.StyleContext.add_provider_for_display(
-            display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
 
     class CanastaWindow(Gtk.ApplicationWindow):
         def __init__(self, app: Gtk.Application, args: argparse.Namespace) -> None:
@@ -140,10 +102,7 @@ def main(argv: list[str] | None = None) -> int:
             self._set_status(self._initial_status_message())
             self._refresh()
             self._check_saved_game_on_startup()
-            self._maybe_play_bot_turn()
-
-        def _cancel_bot_timer(self) -> None:
-            self.bot_runner.cancel_timer()
+            self.bot_runner.maybe_play_turn()
 
         def _cancel_draw_preview(self) -> None:
             if self.ui_state.draw_preview_timeout_id is not None:
@@ -160,21 +119,6 @@ def main(argv: list[str] | None = None) -> int:
                 self.ui_state.draw_preview_restore_scroll = None
             self._refresh()
             return False
-
-        def _start_bot_indicator(self, actor: PlayerId, name: str) -> None:
-            self.bot_runner.start_indicator(actor, name)
-
-        def _stop_bot_indicator(self) -> None:
-            self.bot_runner.stop_indicator()
-
-        def _tick_bot_indicator(self) -> bool:
-            return self.bot_runner.tick_indicator()
-
-        def _maybe_play_bot_turn(self) -> None:
-            self.bot_runner.maybe_play_turn()
-
-        def _play_one_bot_turn(self) -> bool:
-            return self.bot_runner.play_one_turn()
 
         def _reset_game(self, north: str, south: str, bot_seed: int) -> None:
             reset_game(self, north, south, bot_seed)
@@ -271,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
             if active_window is not None:
                 active_window.present()
             else:
-                _install_css()
+                install_css()
                 window = CanastaWindow(self, self.args)
                 window.present()
 

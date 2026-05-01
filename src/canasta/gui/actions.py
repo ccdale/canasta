@@ -35,7 +35,7 @@ def on_draw(window, GLib) -> None:
     except RuleError as exc:
         window._set_status(f"error: {exc}")
         window._refresh()
-        window._maybe_play_bot_turn()
+        window.bot_runner.maybe_play_turn()
         return
 
     after_hand = list(window.engine.current_hand())
@@ -54,7 +54,7 @@ def on_draw(window, GLib) -> None:
     if inserted:
         hadj = window.hand_scroll.get_hadjustment()
         hadj.set_value(max(0.0, hadj.get_upper() - hadj.get_page_size()))
-    window._maybe_play_bot_turn()
+    window.bot_runner.maybe_play_turn()
 
 
 def on_pickup(window) -> None:

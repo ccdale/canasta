@@ -28,7 +28,7 @@ def build_controllers(
 
 def reset_game(window, north: str, south: str, bot_seed: int) -> None:
     """Start a fresh game with the provided seat controllers."""
-    window._cancel_bot_timer()
+    window.bot_runner.cancel_timer()
     window._cancel_draw_preview()
     window._north = north
     window._south = south
@@ -40,7 +40,7 @@ def reset_game(window, north: str, south: str, bot_seed: int) -> None:
     window._set_status(initial_status_message(window))
     window._refresh()
     save_game(window.engine.state)
-    window._maybe_play_bot_turn()
+    window.bot_runner.maybe_play_turn()
 
 
 def load_saved_game(window) -> None:
@@ -50,7 +50,7 @@ def load_saved_game(window) -> None:
         window._set_status("error: could not load saved game")
         return
 
-    window._cancel_bot_timer()
+    window.bot_runner.cancel_timer()
     window._cancel_draw_preview()
     # Preserve current controller setup since we don't store it.
     window.engine.state = saved_state
@@ -58,7 +58,7 @@ def load_saved_game(window) -> None:
     window.ui_state.last_winner = None
     window._set_status("Game restored from save")
     window._refresh()
-    window._maybe_play_bot_turn()
+    window.bot_runner.maybe_play_turn()
 
 
 def check_saved_game_on_startup(window, on_new_game: Callable) -> None:
@@ -104,4 +104,4 @@ def run_action(window, callback: Callable) -> None:
         window._set_status(f"error: {exc}")
     window._refresh()
     save_game(window.engine.state)
-    window._maybe_play_bot_turn()
+    window.bot_runner.maybe_play_turn()
