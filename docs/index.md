@@ -9,6 +9,7 @@ Documents are ordered chronologically and cross-linked so you can read them in s
 | 2 | [Game Rules & Data Model](02-game-rules-and-model.md) | Card/meld rules encoded in the codebase, scoring, win condition |
 | 3 | [Testing Strategy](03-testing.md) | How the test suite is structured, patterns used, and what is covered |
 | 4 | [AI Player Behavior and Seed Effects](04-ai-player-and-seeding.md) | How each bot decides, how `--bot-seed` is applied, and when outcomes change |
+| 5 | [Bot Strength Strategy](05-bot-strength-strategy.md) | Phase 4 plan for a unified 1-100 strength model, policy scaling, and expected outcome changes |
 
 ---
 
