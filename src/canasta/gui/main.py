@@ -6,8 +6,6 @@ import argparse
 import sys
 from pathlib import Path
 
-from canasta.bot_strategies import TurnBot
-from canasta.bots import build_bot
 from canasta.card_assets import asset_dir
 from canasta.engine import CanastaEngine
 from canasta.gui.actions import (
@@ -24,6 +22,7 @@ from canasta.gui.bootstrap import parse_args, reexec_with_system_python
 from canasta.gui.bot_runner import BotRunner, set_glib_import
 from canasta.gui.layout import build_game_layout
 from canasta.gui.lifecycle import (
+    build_controllers,
     check_saved_game_on_startup,
     initial_status_message,
     load_saved_game,
@@ -111,17 +110,6 @@ def main(argv: list[str] | None = None) -> int:
             display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
-    def _build_controllers(args: argparse.Namespace) -> dict[PlayerId, TurnBot | None]:
-        controllers: dict[PlayerId, TurnBot | None] = {
-            PlayerId.NORTH: None,
-            PlayerId.SOUTH: None,
-        }
-        if args.north != "human":
-            controllers[PlayerId.NORTH] = build_bot(args.north, seed=args.bot_seed + 1)
-        if args.south != "human":
-            controllers[PlayerId.SOUTH] = build_bot(args.south, seed=args.bot_seed + 2)
-        return controllers
-
     class CanastaWindow(Gtk.ApplicationWindow):
         def __init__(self, app: Gtk.Application, args: argparse.Namespace) -> None:
             super().__init__(application=app)
@@ -133,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
             self._north = args.north
             self._south = args.south
             self._bot_seed = args.bot_seed
-            self.controllers = _build_controllers(args)
+            self.controllers = build_controllers(args.north, args.south, args.bot_seed)
             # UI state management
             self.ui_state = UIState()
             self.bot_runner = BotRunner(self)

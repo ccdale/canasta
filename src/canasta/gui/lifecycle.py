@@ -4,11 +4,26 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from canasta.bot_strategies import TurnBot
 from canasta.bots import build_bot
 from canasta.engine import CanastaEngine
 from canasta.gui.dialogs import create_new_game_dialog, create_resume_game_dialog
 from canasta.gui.persistence import load_game, save_game
 from canasta.model import PlayerId, RuleError
+
+
+def build_controllers(
+    north: str, south: str, bot_seed: int
+) -> dict[PlayerId, TurnBot | None]:
+    """Create seat controller mapping from requested bot/human variants."""
+    return {
+        PlayerId.NORTH: build_bot(north, seed=bot_seed + 1)
+        if north != "human"
+        else None,
+        PlayerId.SOUTH: build_bot(south, seed=bot_seed + 2)
+        if south != "human"
+        else None,
+    }
 
 
 def reset_game(window, north: str, south: str, bot_seed: int) -> None:
@@ -18,10 +33,7 @@ def reset_game(window, north: str, south: str, bot_seed: int) -> None:
     window._north = north
     window._south = south
     window._bot_seed = bot_seed
-    window.controllers = {
-        PlayerId.NORTH: build_bot(north, seed=bot_seed + 1) if north != "human" else None,
-        PlayerId.SOUTH: build_bot(south, seed=bot_seed + 2) if south != "human" else None,
-    }
+    window.controllers = build_controllers(north, south, bot_seed)
     window.engine = CanastaEngine()
     window.ui_state.reset_selection()
     window.ui_state.last_winner = None
