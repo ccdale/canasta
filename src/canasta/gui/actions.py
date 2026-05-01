@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from canasta.gui.persistence import save_game
 from canasta.gui.utilities import new_cards_in_hand, resolve_target_meld_index
 from canasta.model import RuleError
+from canasta.rules import discard_pile_is_frozen
 
 
 def on_hand_toggled(window, button, index: int) -> None:
@@ -107,3 +109,74 @@ def on_next_round(window) -> None:
     """Advance to the next round after a winner is set."""
     window.ui_state.last_winner = None
     window._run_action(window.engine.next_round)
+
+
+def on_discard_pile_clicked(window) -> None:
+    """Click on the discard pile: auto-select matching hand cards and attempt pickup.
+
+    Frozen pile: requires exactly 2 natural cards matching the top discard rank.
+    Unfrozen pile: selects all natural matching cards.
+
+    On opening-meld shortfall, the auto-selection is kept in place and a hint is
+    shown — the player adds more cards manually then presses Pickup.
+    """
+    state = window.engine.state
+    is_human_turn = window.controllers.get(state.current_player) is None
+    if not is_human_turn or state.turn_drawn or not state.discard or state.winner is not None:
+        return
+
+    top = state.discard[-1]
+    if top.is_wild() or top.is_black_three():
+        window._set_status(
+            "Cannot pick up: pile is frozen with a wild card or black three on top"
+        )
+        return
+
+    player = state.players[state.current_player]
+    matching_indexes = [
+        idx
+        for idx, card in enumerate(player.hand)
+        if card.rank == top.rank and not card.is_wild()
+    ]
+
+    frozen = discard_pile_is_frozen(state.discard)
+    if frozen:
+        if len(matching_indexes) < 2:
+            window._set_status(
+                f"Frozen pickup needs 2 natural {top.rank}s in hand "
+                f"— you have {len(matching_indexes)}"
+            )
+            return
+        auto_indexes = matching_indexes[:2]
+    else:
+        if not matching_indexes:
+            window._set_status(f"No {top.rank}s in hand to pick up discard pile")
+            return
+        auto_indexes = matching_indexes
+
+    # Apply auto-selection and attempt pickup immediately.
+    window.ui_state.selected_hand_indexes.clear()
+    window.ui_state.selected_hand_indexes.update(auto_indexes)
+    window._cancel_draw_preview()
+
+    try:
+        result = window.engine.pickup_discard(auto_indexes)
+        window.ui_state.selected_hand_indexes.clear()
+        window._set_status(result.message)
+        window._refresh()
+        save_game(window.engine.state)
+        window.bot_runner.maybe_play_turn()
+    except RuleError as exc:
+        msg = str(exc)
+        if "opening meld" in msg:
+            # Leave selection in place so the player can add more cards and press Pickup.
+            window._set_status(
+                f"Opening meld needs 50+ pts — {len(auto_indexes)} {top.rank}"
+                f"{'s' if len(auto_indexes) != 1 else ''} selected. "
+                "Add more cards, then press Pickup."
+            )
+            window._refresh()
+        else:
+            window.ui_state.selected_hand_indexes.clear()
+            window._set_status(f"error: {exc}")
+            window._refresh()

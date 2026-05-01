@@ -12,6 +12,7 @@ from canasta.gui.actions import (
     on_add_to_meld,
     on_deselect_all,
     on_discard,
+    on_discard_pile_clicked,
     on_draw,
     on_hand_toggled,
     on_meld,
@@ -21,7 +22,6 @@ from canasta.gui.actions import (
 from canasta.gui.bootstrap import parse_args, reexec_with_system_python
 from canasta.gui.bot_runner import BotRunner, set_glib_import
 from canasta.gui.layout import build_game_layout
-from canasta.gui.theme import install_css, set_gtk_imports as set_theme_gtk_imports
 from canasta.gui.lifecycle import (
     build_controllers,
     check_saved_game_on_startup,
@@ -38,6 +38,8 @@ from canasta.gui.persistence import (
 from canasta.gui.renderer import GameRenderer
 from canasta.gui.renderer import set_gtk_imports as set_renderer_gtk_imports
 from canasta.gui.state import UIState
+from canasta.gui.theme import install_css
+from canasta.gui.theme import set_gtk_imports as set_theme_gtk_imports
 from canasta.gui.widgets import set_gtk_imports
 from canasta.model import PlayerId
 
@@ -70,7 +72,6 @@ def main(argv: list[str] | None = None) -> int:
     set_renderer_gtk_imports(Gtk)
     set_theme_gtk_imports(Gtk, Gdk)
     set_glib_import(GLib)
-
 
     class CanastaWindow(Gtk.ApplicationWindow):
         def __init__(self, app: Gtk.Application, args: argparse.Namespace) -> None:
@@ -202,6 +203,9 @@ def main(argv: list[str] | None = None) -> int:
 
         def _on_next_round(self, _button: Gtk.Button) -> None:
             on_next_round(self)
+
+        def _on_discard_pile_clicked(self) -> None:
+            on_discard_pile_clicked(self)
 
     class CanastaApplication(Gtk.Application):
         def __init__(self, args: argparse.Namespace) -> None:

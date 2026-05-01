@@ -101,11 +101,20 @@ class GameRenderer:
             top_discard = state.discard[-1]
             top_discard_path = card_image_path(top_discard, self.window.assets_root)
             if top_discard_path is not None:
-                self.window.discard_box.append(build_pile_picture(top_discard_path))
+                card_widget = build_pile_picture(top_discard_path)
             else:
-                self.window.discard_box.append(
-                    build_card_widget(top_discard, self.window.assets_root, format_card)
+                card_widget = build_card_widget(
+                    top_discard, self.window.assets_root, format_card
                 )
+            is_human_turn = self.window.controllers.get(state.current_player) is None
+            if is_human_turn and not state.turn_drawn and state.winner is None:
+                btn = Gtk.Button()
+                btn.add_css_class("flat")
+                btn.set_child(card_widget)
+                btn.connect("clicked", lambda _: self.window._on_discard_pile_clicked())
+                self.window.discard_box.append(btn)
+            else:
+                self.window.discard_box.append(card_widget)
         else:
             self.window.discard_box.append(Gtk.Label(label="(empty)"))
 
