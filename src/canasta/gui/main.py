@@ -13,6 +13,7 @@ from canasta.engine import CanastaEngine
 from canasta.gui.bootstrap import parse_args, reexec_with_system_python
 from canasta.gui.bot_runner import BotRunner, set_glib_import
 from canasta.gui.dialogs import create_new_game_dialog, create_resume_game_dialog
+from canasta.gui.layout import build_game_layout
 from canasta.gui.persistence import (
     get_version,
     load_game,
@@ -26,12 +27,7 @@ from canasta.gui.utilities import (
     new_cards_in_hand,
     resolve_target_meld_index,
 )
-from canasta.gui.widgets import (
-    CARD_H,
-    CARD_LIFT,
-    CARD_W,
-    set_gtk_imports,
-)
+from canasta.gui.widgets import set_gtk_imports
 from canasta.model import PlayerId, RuleError
 
 _BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner"]
@@ -140,150 +136,7 @@ def main(argv: list[str] | None = None) -> int:
                 Path(args.assets_dir).expanduser() if args.assets_dir else asset_dir()
             )
 
-            root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-            root.set_margin_top(8)
-            root.set_margin_bottom(8)
-            root.set_margin_start(8)
-            root.set_margin_end(8)
-            self.set_child(root)
-
-            # ── Row 1: North melds ────────────────────────────────────────
-            self.north_melds_hdr = Gtk.Label(label="North melds", xalign=0)
-            self.north_melds_hdr.add_css_class("section-label")
-            root.append(self.north_melds_hdr)
-            north_melds_scroll = Gtk.ScrolledWindow()
-            north_melds_scroll.set_policy(
-                Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER
-            )
-            north_melds_scroll.set_min_content_height(CARD_H + 24)
-            root.append(north_melds_scroll)
-            self.north_melds_box = Gtk.Box(
-                orientation=Gtk.Orientation.HORIZONTAL, spacing=10
-            )
-            self.north_melds_box.set_margin_top(4)
-            self.north_melds_box.set_margin_bottom(4)
-            self.north_melds_box.set_margin_start(6)
-            north_melds_scroll.set_child(self.north_melds_box)
-
-            root.append(Gtk.Separator())
-
-            # ── Row 2: Stock and discard (own row — nothing tall beside them) ──
-            pile_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
-            pile_row.set_margin_start(6)
-            pile_row.set_size_request(-1, CARD_H + 34)
-            pile_row.set_valign(Gtk.Align.START)
-            pile_row.set_vexpand(False)
-            root.append(pile_row)
-
-            self.stock_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-            self.stock_box.set_size_request(CARD_W + 4, CARD_H + 28)
-            self.stock_box.set_valign(Gtk.Align.START)
-            self.stock_box.set_vexpand(False)
-            pile_row.append(self.stock_box)
-
-            self.discard_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-            self.discard_box.set_size_request(CARD_W + 4, CARD_H + 28)
-            self.discard_box.set_valign(Gtk.Align.START)
-            self.discard_box.set_vexpand(False)
-            pile_row.append(self.discard_box)
-
-            # ── Row 3: Controls ───────────────────────────────────────────
-            controls_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-            controls_row.set_margin_start(6)
-            root.append(controls_row)
-
-            self.draw_button = Gtk.Button(label="Draw")
-            self.draw_button.connect("clicked", self._on_draw)
-            controls_row.append(self.draw_button)
-
-            self.pickup_button = Gtk.Button(label="Pickup")
-            self.pickup_button.connect("clicked", self._on_pickup)
-            controls_row.append(self.pickup_button)
-
-            self.meld_button = Gtk.Button(label="Meld")
-            self.meld_button.connect("clicked", self._on_meld)
-            controls_row.append(self.meld_button)
-
-            self.add_button = Gtk.Button(label="Add to Meld")
-            self.add_button.connect("clicked", self._on_add_to_meld)
-            controls_row.append(self.add_button)
-
-            self.discard_button = Gtk.Button(label="Discard")
-            self.discard_button.connect("clicked", self._on_discard)
-            controls_row.append(self.discard_button)
-
-            self.deselect_all_button = Gtk.Button(label="Deselect All")
-            self.deselect_all_button.connect("clicked", self._on_deselect_all)
-            controls_row.append(self.deselect_all_button)
-
-            self.next_round_button = Gtk.Button(label="Next Round")
-            self.next_round_button.connect("clicked", self._on_next_round)
-            controls_row.append(self.next_round_button)
-
-            self.meld_model = Gtk.StringList.new([])
-            self.meld_selector = Gtk.DropDown.new(self.meld_model, None)
-            controls_row.append(self.meld_selector)
-
-            new_game_button = Gtk.Button(label="New Game\u2026")
-            new_game_button.connect("clicked", self._show_new_game_dialog)
-            controls_row.append(new_game_button)
-
-            # ── Row 4: Status ─────────────────────────────────────────────
-            self.info_label = Gtk.Label(xalign=0)
-            self.info_label.set_wrap(True)
-            self.info_label.set_margin_start(6)
-            root.append(self.info_label)
-
-            self.score_label = Gtk.Label(xalign=0)
-            self.score_label.set_wrap(True)
-            self.score_label.set_margin_start(6)
-            root.append(self.score_label)
-
-            self.status_label = Gtk.Label(xalign=0)
-            self.status_label.set_wrap(True)
-            self.status_label.set_margin_start(6)
-            root.append(self.status_label)
-
-            self.stats_label = Gtk.Label(xalign=0)
-            self.stats_label.set_wrap(True)
-            self.stats_label.set_margin_start(6)
-            root.append(self.stats_label)
-
-            root.append(Gtk.Separator())
-
-            # ── Row 5: South hand ─────────────────────────────────────────
-            hand_hdr = Gtk.Label(label="Your hand", xalign=0)
-            hand_hdr.add_css_class("section-label")
-            hand_hdr.set_margin_start(6)
-            root.append(hand_hdr)
-            hand_scroll = Gtk.ScrolledWindow()
-            hand_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER)
-            hand_scroll.set_min_content_height(CARD_H + CARD_LIFT + 8)
-            root.append(hand_scroll)
-            self.hand_scroll = hand_scroll
-            self.hand_fixed = Gtk.Fixed()
-            hand_scroll.set_child(self.hand_fixed)
-
-            root.append(Gtk.Separator())
-
-            # ── Row 6: South melds ────────────────────────────────────────
-            south_melds_hdr = Gtk.Label(label="South melds", xalign=0)
-            south_melds_hdr.add_css_class("section-label")
-            south_melds_hdr.set_margin_start(6)
-            root.append(south_melds_hdr)
-            south_melds_scroll = Gtk.ScrolledWindow()
-            south_melds_scroll.set_policy(
-                Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.NEVER
-            )
-            south_melds_scroll.set_min_content_height(CARD_H + 24)
-            root.append(south_melds_scroll)
-            self.south_melds_box = Gtk.Box(
-                orientation=Gtk.Orientation.HORIZONTAL, spacing=10
-            )
-            self.south_melds_box.set_margin_top(4)
-            self.south_melds_box.set_margin_bottom(4)
-            self.south_melds_box.set_margin_start(6)
-            south_melds_scroll.set_child(self.south_melds_box)
+            build_game_layout(self, Gtk)
 
             self._set_status(self._initial_status_message())
             self._refresh()
