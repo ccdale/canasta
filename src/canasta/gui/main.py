@@ -84,7 +84,13 @@ def main(argv: list[str] | None = None) -> int:
             self._north = args.north
             self._south = args.south
             self._bot_seed = args.bot_seed
-            self.controllers = build_controllers(args.north, args.south, args.bot_seed)
+            self._bot_strength = args.bot_strength
+            self.controllers = build_controllers(
+                args.north,
+                args.south,
+                args.bot_seed,
+                args.bot_strength,
+            )
             # UI state management
             self.ui_state = UIState()
             self.bot_runner = BotRunner(self)
@@ -121,8 +127,10 @@ def main(argv: list[str] | None = None) -> int:
             self._refresh()
             return False
 
-        def _reset_game(self, north: str, south: str, bot_seed: int) -> None:
-            reset_game(self, north, south, bot_seed)
+        def _reset_game(
+            self, north: str, south: str, bot_seed: int, bot_strength: int
+        ) -> None:
+            reset_game(self, north, south, bot_seed, bot_strength)
 
         def _load_saved_game(self) -> None:
             load_saved_game(self)

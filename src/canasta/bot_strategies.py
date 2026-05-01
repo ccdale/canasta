@@ -17,9 +17,13 @@ class TurnBot(Protocol):
     """Protocol for bot turn decision-making."""
 
     name: str
+    strength: int
 
     def choose_meld_indexes(
-        self, hand: list[Card], opening_required: bool
+        self,
+        hand: list[Card],
+        opening_required: bool,
+        opening_minimum: int = OPENING_MELD_MINIMUM,
     ) -> list[int] | None: ...
 
     def choose_discard_index(self, hand: list[Card]) -> int: ...
@@ -31,11 +35,17 @@ class RandomBot:
 
     rng: random.Random
     name: str = "random"
+    strength: int = 1
 
     def choose_meld_indexes(
-        self, hand: list[Card], opening_required: bool
+        self,
+        hand: list[Card],
+        opening_required: bool,
+        opening_minimum: int = OPENING_MELD_MINIMUM,
     ) -> list[int] | None:
-        candidates = _eligible_natural_meld_candidates(hand, opening_required)
+        candidates = _eligible_natural_meld_candidates(
+            hand, opening_required, opening_minimum
+        )
         if not candidates:
             return None
         return self.rng.choice(candidates)
@@ -52,11 +62,17 @@ class GreedyBot:
     """Greedy bot: maximizes immediate card value and discard value."""
 
     name: str = "greedy"
+    strength: int = 1
 
     def choose_meld_indexes(
-        self, hand: list[Card], opening_required: bool
+        self,
+        hand: list[Card],
+        opening_required: bool,
+        opening_minimum: int = OPENING_MELD_MINIMUM,
     ) -> list[int] | None:
-        candidates = _eligible_natural_meld_candidates(hand, opening_required)
+        candidates = _eligible_natural_meld_candidates(
+            hand, opening_required, opening_minimum
+        )
         if not candidates:
             return None
         # Maximize immediate card value to push opening and canasta progress.
@@ -77,17 +93,28 @@ class SafeBot:
     """Conservative bot: cautious melding and low-risk discard preferences."""
 
     name: str = "safe"
+    strength: int = 1
 
     def choose_meld_indexes(
-        self, hand: list[Card], opening_required: bool
+        self,
+        hand: list[Card],
+        opening_required: bool,
+        opening_minimum: int = OPENING_MELD_MINIMUM,
     ) -> list[int] | None:
-        candidates = _eligible_natural_meld_candidates(hand, opening_required)
+        candidates = _eligible_natural_meld_candidates(
+            hand, opening_required, opening_minimum
+        )
         if not candidates:
             return None
 
         if not opening_required:
-            # Hold cards for flexibility once the opening requirement is already met.
-            return None
+            # At higher strengths, SafeBot still opens up to capture clear value.
+            if self.strength < 60:
+                return None
+            return max(
+                candidates,
+                key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)),
+            )
 
         # Open with the lowest-value legal candidate that satisfies threshold.
         return min(
@@ -121,11 +148,17 @@ class AggroBot:
     """Aggressive bot: meld as much as possible, discard highest-risk points last."""
 
     name: str = "aggro"
+    strength: int = 1
 
     def choose_meld_indexes(
-        self, hand: list[Card], opening_required: bool
+        self,
+        hand: list[Card],
+        opening_required: bool,
+        opening_minimum: int = OPENING_MELD_MINIMUM,
     ) -> list[int] | None:
-        candidates = _eligible_natural_meld_candidates(hand, opening_required)
+        candidates = _eligible_natural_meld_candidates(
+            hand, opening_required, opening_minimum
+        )
         if not candidates:
             return None
         return max(
@@ -146,11 +179,17 @@ class PlannerBot:
     """Balanced bot: meld strong candidates, keep synergy, discard with medium risk."""
 
     name: str = "planner"
+    strength: int = 1
 
     def choose_meld_indexes(
-        self, hand: list[Card], opening_required: bool
+        self,
+        hand: list[Card],
+        opening_required: bool,
+        opening_minimum: int = OPENING_MELD_MINIMUM,
     ) -> list[int] | None:
-        candidates = _eligible_natural_meld_candidates(hand, opening_required)
+        candidates = _eligible_natural_meld_candidates(
+            hand, opening_required, opening_minimum
+        )
         if not candidates:
             return None
 
@@ -182,7 +221,7 @@ class PlannerBot:
 
 
 def _eligible_natural_meld_candidates(
-    hand: list[Card], opening_required: bool
+    hand: list[Card], opening_required: bool, opening_minimum: int = OPENING_MELD_MINIMUM
 ) -> list[list[int]]:
     """Find all eligible natural card meld candidates in a hand.
 
@@ -212,7 +251,7 @@ def _eligible_natural_meld_candidates(
                 continue
 
             points = opening_meld_value([hand[i] for i in candidate])
-            if points >= OPENING_MELD_MINIMUM:
+            if points >= opening_minimum:
                 candidates.append(candidate)
             per_rank.append(candidate)
 
@@ -221,14 +260,16 @@ def _eligible_natural_meld_candidates(
 
     if opening_required:
         # Opening meld may be split across multiple natural ranks in one action.
-        split_candidates = _opening_split_candidates(hand, rank_candidates)
+        split_candidates = _opening_split_candidates(
+            hand, rank_candidates, opening_minimum
+        )
         candidates.extend(split_candidates)
 
     return candidates
 
 
 def _opening_split_candidates(
-    hand: list[Card], rank_candidates: list[list[list[int]]]
+    hand: list[Card], rank_candidates: list[list[list[int]]], opening_minimum: int
 ) -> list[list[int]]:
     """Build opening meld candidates that combine multiple natural ranks."""
     if len(rank_candidates) < 2:
@@ -241,7 +282,7 @@ def _opening_split_candidates(
         if len(indexes) < 6:
             return
         points = opening_meld_value([hand[i] for i in indexes])
-        if points < OPENING_MELD_MINIMUM:
+        if points < opening_minimum:
             return
         key = tuple(sorted(indexes))
         if key in seen:

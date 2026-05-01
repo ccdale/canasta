@@ -57,7 +57,8 @@ HELP_COMMANDS = {
         "  Create a new meld from the specified hand cards (by index).\n"
         "  Example: 'meld 0 1 2' creates a meld from cards at indexes 0, 1, 2.\n"
         "  Rules: ≥3 cards, ≥1 natural, all naturals same rank, wilds ≤ naturals.\n"
-        "  First meld must score ≥50 points (naturals only).\n"
+        "  First meld must meet current opening minimum (naturals only):\n"
+        "  score<0:15, <1500:50, <3000:90, >=3000:120.\n"
         "  Opening melds may be split across multiple natural ranks if each rank\n"
         "  forms its own valid meld in the same action.\n"
     ),
@@ -154,6 +155,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--bot-seed", type=int, default=0)
     parser.add_argument(
+        "--bot-strength",
+        type=int,
+        default=1,
+        help="Bot strength from 1 (baseline) to 100 (strongest)",
+    )
+    parser.add_argument(
         "--colours",
         action="store_true",
         help="Use coloured suit symbols in card display",
@@ -167,9 +174,17 @@ def _build_controllers(args: argparse.Namespace) -> dict[PlayerId, TurnBot | Non
         PlayerId.SOUTH: None,
     }
     if args.north != "human":
-        controllers[PlayerId.NORTH] = build_bot(args.north, seed=args.bot_seed + 1)
+        controllers[PlayerId.NORTH] = build_bot(
+            args.north,
+            seed=args.bot_seed + 1,
+            strength=args.bot_strength,
+        )
     if args.south != "human":
-        controllers[PlayerId.SOUTH] = build_bot(args.south, seed=args.bot_seed + 2)
+        controllers[PlayerId.SOUTH] = build_bot(
+            args.south,
+            seed=args.bot_seed + 2,
+            strength=args.bot_strength,
+        )
     return controllers
 
 
@@ -180,7 +195,10 @@ def main(argv: list[str] | None = None) -> int:
 
     print("Canasta CLI")
     print(HELP_SUMMARY)
-    print(f"Controllers: north={args.north} south={args.south}")
+    print(
+        f"Controllers: north={args.north} south={args.south} "
+        f"bot_strength={args.bot_strength}"
+    )
 
     while True:
         current = engine.state.current_player

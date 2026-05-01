@@ -17,12 +17,13 @@ from canasta.model import RuleError
 BotKind = Literal["random", "greedy", "safe", "aggro", "planner"]
 
 
-def build_bot(kind: BotKind, seed: int | None = None) -> TurnBot:
+def build_bot(kind: BotKind, seed: int | None = None, strength: int = 1) -> TurnBot:
     """Instantiate a bot of the given kind.
 
     Args:
         kind: The bot strategy type.
         seed: Random seed (only used by RandomBot).
+        strength: Bot strength from 1-100.
 
     Returns:
         A TurnBot implementing the requested strategy.
@@ -30,16 +31,19 @@ def build_bot(kind: BotKind, seed: int | None = None) -> TurnBot:
     Raises:
         ValueError: If kind is not a valid BotKind.
     """
+    if strength < 1 or strength > 100:
+        raise ValueError("bot strength must be between 1 and 100")
+
     if kind == "random":
-        return RandomBot(rng=random.Random(seed))
+        return RandomBot(rng=random.Random(seed), strength=strength)
     if kind == "greedy":
-        return GreedyBot()
+        return GreedyBot(strength=strength)
     if kind == "safe":
-        return SafeBot()
+        return SafeBot(strength=strength)
     if kind == "aggro":
-        return AggroBot()
+        return AggroBot(strength=strength)
     if kind == "planner":
-        return PlannerBot()
+        return PlannerBot(strength=strength)
     raise ValueError(f"unknown bot kind: {kind}")
 
 
@@ -59,8 +63,9 @@ def play_bot_turn(engine: CanastaEngine, bot: TurnBot) -> list[str]:
     while True:
         player = engine.state.players[engine.state.current_player]
         opening_required = len(player.melds) == 0
+        opening_minimum = engine.opening_meld_minimum(engine.state.current_player)
         hand = engine.current_hand()
-        meld_indexes = bot.choose_meld_indexes(hand, opening_required)
+        meld_indexes = bot.choose_meld_indexes(hand, opening_required, opening_minimum)
         if meld_indexes is None:
             break
         try:

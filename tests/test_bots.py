@@ -37,6 +37,15 @@ class TestBuildBot:
         bot = build_bot("planner")
         assert bot.name == "planner"
 
+    def test_build_bot_strength_out_of_range_raises(self):
+        import pytest
+
+        with pytest.raises(ValueError, match="between 1 and 100"):
+            build_bot("greedy", strength=0)
+
+        with pytest.raises(ValueError, match="between 1 and 100"):
+            build_bot("greedy", strength=101)
+
 
 class TestBotTurns:
     def test_random_bot_completes_legal_turn(self):
@@ -144,6 +153,11 @@ class TestSafeBot:
         idx = SafeBot().choose_discard_index(hand)
         assert hand[idx].label() == "5C"
 
+    def test_safe_bot_high_strength_melds_after_opening(self):
+        hand = [Card("A", "S"), Card("A", "H"), Card("A", "D")]
+        idxs = SafeBot(strength=80).choose_meld_indexes(hand, opening_required=False)
+        assert idxs is not None
+
 
 class TestAggroBot:
     def test_aggro_bot_prefers_longer_meld(self):
@@ -185,3 +199,20 @@ class TestPlannerBot:
         hand = [Card("2", "S"), Card("7", "H"), Card("8", "D")]
         idx = PlannerBot().choose_discard_index(hand)
         assert hand[idx].rank != "2"
+
+
+class TestDynamicOpeningThresholdIntegration:
+    def test_bot_respects_engine_opening_minimum(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].score = 3000  # opening minimum now 120
+        hand = eng.state.players[PlayerId.NORTH].hand
+        hand[0] = Card("A", "S")
+        hand[1] = Card("A", "H")
+        hand[2] = Card("A", "D")
+        hand[3] = Card("K", "S")
+        # Keep draw deterministic and harmless.
+        eng.state.stock = [Card("4", "S"), Card("5", "S"), Card("6", "S")]
+
+        actions = play_bot_turn(eng, GreedyBot(strength=100))
+
+        assert not any(action.startswith("created") for action in actions)

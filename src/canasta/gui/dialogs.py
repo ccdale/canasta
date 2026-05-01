@@ -67,8 +67,9 @@ def create_new_game_dialog(
     north_choice: str,
     south_choice: str,
     bot_seed: int,
+    bot_strength: int,
     bot_choices: list[str],
-    on_start: Callable[[str, str, int], None],
+    on_start: Callable[[str, str, int, int], None],
 ) -> None:
     """Create and present a new game configuration dialog.
 
@@ -77,8 +78,9 @@ def create_new_game_dialog(
         north_choice: Current north player choice
         south_choice: Current south player choice
         bot_seed: Current bot seed value
+        bot_strength: Current bot strength value
         bot_choices: List of available bot choices
-        on_start: Callback when user clicks Start with (north, south, seed)
+        on_start: Callback when user clicks Start with (north, south, seed, strength)
     """
     # Import GTK here to avoid requiring it at module level
     from gi.repository import Gtk  # pylint: disable=import-outside-toplevel
@@ -125,6 +127,15 @@ def create_new_game_dialog(
     seed_row.append(seed_spin)
     box.append(seed_row)
 
+    strength_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    strength_lbl = Gtk.Label(label="Bot strength:", xalign=0)
+    strength_lbl.set_hexpand(True)
+    strength_row.append(strength_lbl)
+    strength_adj = Gtk.Adjustment.new(bot_strength, 1, 100, 1, 10, 0)
+    strength_spin = Gtk.SpinButton.new(strength_adj, 1, 0)
+    strength_row.append(strength_spin)
+    box.append(strength_row)
+
     btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     btn_row.set_halign(Gtk.Align.END)
     cancel_btn = Gtk.Button(label="Cancel")
@@ -137,8 +148,9 @@ def create_new_game_dialog(
         north = bot_choices[north_dd.get_selected()]
         south = bot_choices[south_dd.get_selected()]
         seed = int(seed_spin.get_value())
+        strength = int(strength_spin.get_value())
         dialog.close()
-        on_start(north, south, seed)
+        on_start(north, south, seed, strength)
 
     start_btn.connect("clicked", _on_start)
     btn_row.append(start_btn)

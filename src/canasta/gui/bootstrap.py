@@ -32,6 +32,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Controller for the south seat (default: human)",
     )
     parser.add_argument("--bot-seed", type=int, default=0)
+    parser.add_argument(
+        "--bot-strength",
+        type=int,
+        default=1,
+        help="Bot strength from 1 (baseline) to 100 (strongest)",
+    )
     return parser.parse_args(argv)
 
 

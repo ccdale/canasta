@@ -13,27 +13,30 @@ from canasta.model import PlayerId, RuleError
 
 
 def build_controllers(
-    north: str, south: str, bot_seed: int
+    north: str, south: str, bot_seed: int, bot_strength: int
 ) -> dict[PlayerId, TurnBot | None]:
     """Create seat controller mapping from requested bot/human variants."""
     return {
-        PlayerId.NORTH: build_bot(north, seed=bot_seed + 1)
+        PlayerId.NORTH: build_bot(north, seed=bot_seed + 1, strength=bot_strength)
         if north != "human"
         else None,
-        PlayerId.SOUTH: build_bot(south, seed=bot_seed + 2)
+        PlayerId.SOUTH: build_bot(south, seed=bot_seed + 2, strength=bot_strength)
         if south != "human"
         else None,
     }
 
 
-def reset_game(window, north: str, south: str, bot_seed: int) -> None:
+def reset_game(
+    window, north: str, south: str, bot_seed: int, bot_strength: int
+) -> None:
     """Start a fresh game with the provided seat controllers."""
     window.bot_runner.cancel_timer()
     window._cancel_draw_preview()
     window._north = north
     window._south = south
     window._bot_seed = bot_seed
-    window.controllers = build_controllers(north, south, bot_seed)
+    window._bot_strength = bot_strength
+    window.controllers = build_controllers(north, south, bot_seed, bot_strength)
     window.engine = CanastaEngine()
     window.ui_state.reset_selection()
     window.ui_state.last_winner = None
@@ -77,6 +80,7 @@ def show_new_game_dialog(window, bot_choices: list[str], on_reset: Callable) -> 
         window._north,
         window._south,
         window._bot_seed,
+        window._bot_strength,
         bot_choices,
         on_reset,
     )
@@ -90,7 +94,10 @@ def initial_status_message(window) -> str:
             "Using text fallback. Symlink ~/.local/share/canasta to your card images."
         )
     controllers_desc = f"north={window._north}  south={window._south}"
-    return f"Assets: {window.assets_root}  |  {controllers_desc}"
+    return (
+        f"Assets: {window.assets_root}  |  {controllers_desc}  |  "
+        f"bot_strength={window._bot_strength}"
+    )
 
 
 def run_action(window, callback: Callable) -> None:
