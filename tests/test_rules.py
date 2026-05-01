@@ -2,6 +2,7 @@
 
 from canasta.model import Card, Meld
 from canasta.rules import (
+    MATCH_TARGET_SCORE,
     OPENING_MELD_MINIMUM,
     can_add_cards_to_meld,
     can_discard,
@@ -11,6 +12,7 @@ from canasta.rules import (
     hand_score,
     is_discard_freeze_card,
     meld_score,
+    opening_meld_minimum_for_score,
     opening_meld_value,
     split_meld_cards,
     validate_meld_cards,
@@ -253,6 +255,23 @@ class TestOpeningMeldValue:
         # 2 × A + K = 50
         cards = [c("A", "S"), c("A", "H"), c("K", "D")]
         assert opening_meld_value(cards) >= OPENING_MELD_MINIMUM
+
+
+class TestOpeningMeldMinimumForScore:
+    def test_negative_score_requires_15(self):
+        assert opening_meld_minimum_for_score(-1) == 15
+
+    def test_sub_1500_score_requires_50(self):
+        assert opening_meld_minimum_for_score(1499) == 50
+
+    def test_sub_3000_score_requires_90(self):
+        assert opening_meld_minimum_for_score(1500) == 90
+
+    def test_3000_and_above_requires_120(self):
+        assert opening_meld_minimum_for_score(3000) == 120
+
+    def test_match_target_constant(self):
+        assert MATCH_TARGET_SCORE == 5000
 
 
 class TestValidatePickupCards:

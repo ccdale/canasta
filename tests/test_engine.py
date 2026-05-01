@@ -822,3 +822,97 @@ class TestOpeningMeld:
         hand[2] = Card("7", "D")
         result = eng.create_meld([0, 1, 2])
         assert "meld" in result.message
+
+    def test_negative_match_score_uses_15_point_opening(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].score = -5
+        idxs = self._draw_and_inject(
+            eng, [Card("7", "S"), Card("7", "H"), Card("7", "D")]
+        )
+
+        result = eng.create_meld(idxs)
+
+        assert "meld" in result.message
+
+    def test_1500_score_uses_90_point_opening(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].score = 1500
+        idxs = self._draw_and_inject(
+            eng, [Card("A", "S"), Card("A", "H"), Card("A", "D")]
+        )
+
+        with pytest.raises(RuleError, match="at least 90 points"):
+            eng.create_meld(idxs)
+
+    def test_3000_score_uses_120_point_opening(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].score = 3000
+        idxs = self._draw_and_inject(
+            eng,
+            [
+                Card("A", "S"),
+                Card("A", "H"),
+                Card("A", "D"),
+                Card("A", "C"),
+                Card("A", "S"),
+            ],
+        )
+
+        with pytest.raises(RuleError, match="at least 120 points"):
+            eng.create_meld(idxs)
+
+
+class TestMatchPlay:
+    def test_match_winner_none_before_round_end(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].score = 5000
+
+        assert eng.match_winner() is None
+
+    def test_match_winner_when_one_player_reaches_target(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].score = 4980
+        eng.state.players[PlayerId.NORTH].melds = [
+            Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])
+        ]
+        eng.state.players[PlayerId.NORTH].red_threes = []
+        eng.state.players[PlayerId.NORTH].hand = []
+        eng.state.players[PlayerId.SOUTH].red_threes = []
+        eng.state.players[PlayerId.SOUTH].hand = [Card("7", "S")]
+        eng.state.winner = PlayerId.NORTH
+
+        assert eng.total_score(PlayerId.NORTH) == 5040
+        assert eng.match_winner() == PlayerId.NORTH
+
+    def test_match_winner_uses_highest_total_if_both_cross_target(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].score = 4990
+        eng.state.players[PlayerId.SOUTH].score = 4995
+        eng.state.players[PlayerId.NORTH].melds = [
+            Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])
+        ]
+        eng.state.players[PlayerId.NORTH].red_threes = []
+        eng.state.players[PlayerId.SOUTH].melds = [
+            Meld(cards=[Card("K", "S"), Card("K", "H"), Card("K", "D")])
+        ]
+        eng.state.players[PlayerId.SOUTH].red_threes = []
+        eng.state.players[PlayerId.NORTH].hand = [Card("7", "S")]
+        eng.state.players[PlayerId.SOUTH].hand = []
+        eng.state.winner = PlayerId.SOUTH
+
+        assert eng.total_score(PlayerId.NORTH) == 5045
+        assert eng.total_score(PlayerId.SOUTH) == 5025
+        assert eng.match_winner() == PlayerId.NORTH
+
+    def test_next_round_blocked_when_match_is_over(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].score = 4980
+        eng.state.players[PlayerId.NORTH].melds = [
+            Meld(cards=[Card("A", "S"), Card("A", "H"), Card("A", "D")])
+        ]
+        eng.state.players[PlayerId.NORTH].hand = []
+        eng.state.players[PlayerId.SOUTH].hand = [Card("7", "S")]
+        eng.state.winner = PlayerId.NORTH
+
+        with pytest.raises(RuleError, match="match is over"):
+            eng.next_round()

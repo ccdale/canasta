@@ -174,9 +174,10 @@ def on_discard_pile_clicked(window) -> None:
     except RuleError as exc:
         msg = str(exc)
         if "opening meld" in msg:
+            opening_minimum = window.engine.opening_meld_minimum(state.current_player)
             # Leave selection in place so the player can add more cards and press Pickup.
             window._set_status(
-                f"Opening meld needs 50+ pts — {len(auto_indexes)} {top.rank}"
+                f"Opening meld needs {opening_minimum}+ pts — {len(auto_indexes)} {top.rank}"
                 f"{'s' if len(auto_indexes) != 1 else ''} selected. "
                 "Add more cards, then press Pickup."
             )

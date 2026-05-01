@@ -34,6 +34,8 @@ class GameRenderer:
 
     def refresh_summary(self) -> None:
         state = self.window.engine.state
+        match_winner = self.window.engine.match_winner()
+        opening_minimum = self.window.engine.opening_meld_minimum(state.current_player)
 
         if (
             state.winner is not None
@@ -66,7 +68,13 @@ class GameRenderer:
                     f"Selected: {self.window._selected_indexes() or '(none)'}  |  "
                     f"Frozen: {discard_pile_is_frozen(state.discard)}  |  "
                     f"Turn drawn: {state.turn_drawn}  |  "
-                    f"Hand: {len(state.players[self.window._viewer_player_id()].hand)} cards",
+                    f"Hand: {len(state.players[self.window._viewer_player_id()].hand)} cards  |  "
+                    f"Opening meld minimum: {opening_minimum}",
+                    (
+                        f"Match winner: {match_winner.value}"
+                        if match_winner is not None
+                        else "Match in progress"
+                    ),
                 ]
             )
         )
@@ -353,7 +361,9 @@ class GameRenderer:
             and not preview_active
         )
         self.window.deselect_all_button.set_sensitive(len(selected) > 1)
-        self.window.next_round_button.set_sensitive(state.winner is not None)
+        self.window.next_round_button.set_sensitive(
+            state.winner is not None and self.window.engine.match_winner() is None
+        )
         self.window.meld_selector.set_sensitive(
             is_human_turn
             and has_current_melds

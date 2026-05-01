@@ -21,6 +21,18 @@ CARD_POINTS = {
 
 
 OPENING_MELD_MINIMUM = 50
+MATCH_TARGET_SCORE = 5000
+
+
+def opening_meld_minimum_for_score(score: int) -> int:
+    """Return the opening meld minimum for a player's current match score."""
+    if score < 0:
+        return 15
+    if score < 1500:
+        return 50
+    if score < 3000:
+        return 90
+    return 120
 
 
 def is_discard_freeze_card(card: Card) -> bool:

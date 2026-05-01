@@ -127,6 +127,8 @@ def _render_state(engine: CanastaEngine, colors: bool = False) -> str:
         f"Round: {state.round_number}\n"
         f"Current: {state.current_player.value}\n"
         f"Winner: {state.winner.value if state.winner is not None else '(none)'}\n"
+        f"Match winner: {engine.match_winner().value if engine.match_winner() is not None else '(none)'}\n"
+        f"Opening meld minimum for current player: {engine.opening_meld_minimum()}\n"
         f"Stock: {len(state.stock)}  Discard top: {_card_label(state.discard[-1], colors)}  Frozen: {discard_pile_is_frozen(state.discard)}\n"
         f"Your hand: {hand or '(empty)'}\n"
         f"Your melds:\n{meld_block}\n"

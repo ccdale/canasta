@@ -13,11 +13,12 @@ from canasta.model import (
     RuleError,
 )
 from canasta.rules import (
-    OPENING_MELD_MINIMUM,
+    MATCH_TARGET_SCORE,
     can_add_cards_to_meld,
     can_discard,
     can_pickup_frozen_discard,
     discard_pile_is_frozen,
+    opening_meld_minimum_for_score,
     opening_meld_value,
     split_meld_cards,
     validate_pickup_cards,
@@ -49,9 +50,37 @@ class CanastaEngine:
     def current_hand(self) -> list[Card]:
         return self.state.players[self.state.current_player].hand
 
+    def opening_meld_minimum(self, player_id: PlayerId | None = None) -> int:
+        if player_id is None:
+            player_id = self.state.current_player
+        return opening_meld_minimum_for_score(self.state.players[player_id].score)
+
+    def match_winner(self) -> PlayerId | None:
+        if self.state.winner is None:
+            return None
+
+        totals = {
+            PlayerId.NORTH: self.total_score(PlayerId.NORTH),
+            PlayerId.SOUTH: self.total_score(PlayerId.SOUTH),
+        }
+        qualified = [
+            player_id
+            for player_id, total in totals.items()
+            if total >= MATCH_TARGET_SCORE
+        ]
+        if not qualified:
+            return None
+        if len(qualified) == 1:
+            return qualified[0]
+        if totals[PlayerId.NORTH] != totals[PlayerId.SOUTH]:
+            return max(qualified, key=lambda player_id: totals[player_id])
+        return self.state.winner
+
     def next_round(self) -> ActionResult:
         if self.state.winner is None:
             raise RuleError("round is not over")
+        if self.match_winner() is not None:
+            raise RuleError("match is over")
 
         scores = {
             player_id: player.score + self.score(player_id)
@@ -114,11 +143,12 @@ class CanastaEngine:
 
         if is_opening:
             value = sum(opening_meld_value(group) for group in meld_groups)
-            if value < OPENING_MELD_MINIMUM:
+            opening_minimum = self.opening_meld_minimum(self.state.current_player)
+            if value < opening_minimum:
                 player.hand.extend(cards)
                 sort_hand(player.hand)
                 raise RuleError(
-                    f"opening meld must score at least {OPENING_MELD_MINIMUM} points "
+                    f"opening meld must score at least {opening_minimum} points "
                     f"(naturals only); this scores {value}"
                 )
 
@@ -166,11 +196,12 @@ class CanastaEngine:
 
         if not player.melds:
             value = opening_meld_value(cards)
-            if value < OPENING_MELD_MINIMUM:
+            opening_minimum = self.opening_meld_minimum(self.state.current_player)
+            if value < opening_minimum:
                 player.hand.extend(cards)
                 sort_hand(player.hand)
                 raise RuleError(
-                    f"opening meld must score at least {OPENING_MELD_MINIMUM} points "
+                    f"opening meld must score at least {opening_minimum} points "
                     f"(naturals only); this scores {value}"
                 )
 
