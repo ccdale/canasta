@@ -1,14 +1,14 @@
-# Canasta Implementation Handoff (2026-04-29)
+# Canasta Implementation Handoff (2026-05-01)
 
 ## Current Status
 - Repository: /home/chris/src/canasta
 - Package: canasta
-- Current version: 1.4.7
+- Current version: 2.0.0
 - Python: >=3.12
 - Environment/tooling: uv-managed project
 - CLI entry point: canasta = canasta.cli:main
 - GUI entry point: canasta-gui = canasta.gui:main
-- Test status: 180 tests passing
+- Test status: 181 tests passing
 
 ## What Is Complete
 
@@ -37,10 +37,14 @@
   - src/canasta/gui/dialogs.py extracted and used by main window.
   - src/canasta/gui/state.py extracted and integrated (UIState dataclass).
   - src/canasta/gui/main.py now uses extracted dialogs/state instead of inline dialog/state sprawl.
-- Current GUI file sizes:
-  - src/canasta/gui/main.py: 928 lines
-  - src/canasta/gui/dialogs.py: 147 lines
-  - src/canasta/gui/state.py: 58 lines
+- Phase 3 complete:
+  - src/canasta/gui/renderer.py extracted and integrated.
+  - src/canasta/gui/bot_runner.py extracted and integrated.
+  - src/canasta/gui/layout.py extracted and integrated.
+  - src/canasta/gui/lifecycle.py extracted and integrated.
+  - src/canasta/gui/actions.py extracted and integrated.
+  - src/canasta/gui/theme.py extracted and integrated.
+  - src/canasta/gui/main.py reduced to orchestration/wiring.
 
 ### Version Handling
 - Package-level version workflow now centralized in src/canasta/__init__.py.
@@ -48,58 +52,19 @@
 - GUI title version path uses this package version source (no more unknown in normal repo runs).
 
 ## Recent Milestones
-- 68edb32: Phase 1 modularization commit.
-- 38243f8: HANDOFF updated for Phase 1 completion.
-- 3981f2e: Added gui/__main__.py for python -m canasta.gui execution path.
-- fcb8c17 + eb0e902: GUI test updates and explicit desktop-variant coverage.
-- df1c0ad: Phase 2 refactor (dialogs/state extraction and integration).
-- 2e7386d: Unified version lookup with package __version__.
+- 8e73fa4: Extracted GUI renderer and bot runner.
+- fc5e012: Extracted GUI layout builder.
+- 3b626b3: Extracted GUI lifecycle helpers.
+- 98b6f5a: Extracted GUI action handlers.
+- 8d645ac: Shared GUI controller builder.
+- 6d55ffc: Extracted GUI theme and removed dead bot wrappers.
+- 6a612f7: Added clickable discard-pile pickup UX improvement.
+- 6c663fa: Fixed bot meld routing (extends existing same-rank meld).
+- 5909d8e: Release v2.0.0 baseline.
 
 ## Remaining Work
 
-### Phase 3 (next)
-Goal: reduce src/canasta/gui/main.py further by extracting rendering and bot automation concerns.
-
-#### Recommended extraction targets
-1. src/canasta/gui/renderer.py
-- Move refresh pipeline and UI rendering internals:
-  - _refresh
-  - _refresh_summary
-  - _refresh_hand
-  - _refresh_melds
-  - _refresh_controls
-
-2. src/canasta/gui/bot_runner.py (or gui/bots.py)
-- Move bot scheduling/indicator/play-loop methods:
-  - _maybe_play_bot_turn
-  - _play_one_bot_turn
-  - _start_bot_indicator
-  - _tick_bot_indicator
-  - _stop_bot_indicator
-  - _cancel_bot_timer
-
-3. Keep in main.py
-- Application/window wiring
-- event dispatch hooks
-- orchestration glue between engine + renderer + bot runner + dialogs + ui_state
-
-#### Suggested sequence
-1. Extract renderer first (lower behavior risk, mostly deterministic display logic).
-2. Add/update GUI tests for any moved helper behavior where practical.
-3. Extract bot runner second (timer/callback behavior).
-4. Re-run full checks and desktop entry command variants.
-
-#### Post-Phase-3 usability follow-up
-- Improve discard-pile pickup interaction for human players.
-- Current flow requires preselecting matching hand cards before pressing Pickup.
-- Desired flow:
-  - User clicks the discard pile to begin pickup.
-  - UI auto-selects the same-ranked cards in the player's hand that correspond to the top discard.
-  - If the pickup is legal and unambiguous, continue with a minimal confirmation/action step.
-  - If this would be the player's opening meld and 50 points are not yet met, prompt the player to select an additional rank/cards to complete a legal opening meld.
-- Recommended implementation timing: after Phase 3, once rendering and event-handling responsibilities are extracted and stabilized.
-
-### Phase 4 (planned)
+### Phase 4 (next)
 Goal: strengthen bot play toward effectively unbeatable performance for strong human players, while exposing a single, continuous strength control.
 
 #### Strength control requirement
