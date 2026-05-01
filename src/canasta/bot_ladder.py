@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,14 @@ class LadderResult:
     side_a_avg_total: float
     side_b_avg_total: float
     stalled_rounds: int
+
+
+@dataclass(frozen=True)
+class LadderPreset:
+    name: str
+    side_a: LadderSide
+    side_b: LadderSide
+    description: str
 
 
 def simulate_match(
@@ -209,16 +218,31 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional shorthand side B spec in the form kind:strength (example: safe:80)",
     )
     parser.add_argument(
-        "--side-a-kind", "-ak", default="safe", choices=_bot_kind_choices()
+        "--side-a-kind", "-ak", default=None, choices=_bot_kind_choices()
     )
-    parser.add_argument("--side-a-strength", "-as", type=int, default=30)
+    parser.add_argument("--side-a-strength", "-as", type=int, default=None)
     parser.add_argument(
-        "--side-b-kind", "-bk", default="safe", choices=_bot_kind_choices()
+        "--side-b-kind", "-bk", default=None, choices=_bot_kind_choices()
     )
-    parser.add_argument("--side-b-strength", "-bs", type=int, default=80)
+    parser.add_argument("--side-b-strength", "-bs", type=int, default=None)
     parser.add_argument("--config", "-c", help="JSON config file for ladder options")
+    parser.add_argument(
+        "--preset",
+        "-p",
+        choices=sorted(_preset_definitions().keys()),
+        help="Named matchup preset (reduces typing for common runs)",
+    )
+    parser.add_argument(
+        "--list-presets",
+        action="store_true",
+        help="List preset names and exit",
+    )
     parser.add_argument("--matches", "-m", type=int, default=20)
     parser.add_argument("--seed", "-s", type=int, default=1)
+    parser.add_argument(
+        "--csv",
+        help="Write one-row ladder summary to CSV file",
+    )
     parser.add_argument("--no-swap-seats", action="store_true")
     parser.add_argument("--max-rounds", type=int, default=16)
     parser.add_argument("--max-turns-per-round", type=int, default=400)
@@ -256,6 +280,41 @@ def _parse_side_spec(
     return LadderSide(kind=kind, strength=strength)
 
 
+def _preset_definitions() -> dict[str, LadderPreset]:
+    return {
+        "safe-30v80": LadderPreset(
+            name="safe-30v80",
+            side_a=LadderSide(kind="safe", strength=30),
+            side_b=LadderSide(kind="safe", strength=80),
+            description="Safe bot strength progression check",
+        ),
+        "safe-50v90": LadderPreset(
+            name="safe-50v90",
+            side_a=LadderSide(kind="safe", strength=50),
+            side_b=LadderSide(kind="safe", strength=90),
+            description="Safe bot higher-tier gap check",
+        ),
+        "greedy-30v80": LadderPreset(
+            name="greedy-30v80",
+            side_a=LadderSide(kind="greedy", strength=30),
+            side_b=LadderSide(kind="greedy", strength=80),
+            description="Greedy bot strength progression check",
+        ),
+        "planner-40v90": LadderPreset(
+            name="planner-40v90",
+            side_a=LadderSide(kind="planner", strength=40),
+            side_b=LadderSide(kind="planner", strength=90),
+            description="Planner bot strength progression check",
+        ),
+        "aggro-30v80": LadderPreset(
+            name="aggro-30v80",
+            side_a=LadderSide(kind="aggro", strength=30),
+            side_b=LadderSide(kind="aggro", strength=80),
+            description="Aggro bot strength progression check",
+        ),
+    }
+
+
 def _load_json_config(
     parser: argparse.ArgumentParser, config_path: str
 ) -> dict[str, object]:
@@ -278,11 +337,13 @@ def _load_json_config(
 def _resolve_side(
     parser: argparse.ArgumentParser,
     cli_spec: str | None,
-    cli_kind: str,
-    cli_strength: int,
+    cli_kind: str | None,
+    cli_strength: int | None,
     cfg: dict[str, object],
     cfg_key: str,
     side_name: str,
+    preset_side: LadderSide | None,
+    default_side: LadderSide,
 ) -> LadderSide:
     if cli_spec:
         return _parse_side_spec(parser, cli_spec, side_name)
@@ -306,17 +367,102 @@ def _resolve_side(
         _validate_strength(parser, strength_obj, f"{cfg_key}.strength")
         return LadderSide(kind=kind, strength=strength_obj)
 
-    _validate_strength(parser, cli_strength, side_name)
-    return LadderSide(kind=cli_kind, strength=cli_strength)
+    if cli_kind is not None or cli_strength is not None:
+        kind = cli_kind if cli_kind is not None else default_side.kind
+        strength = cli_strength if cli_strength is not None else default_side.strength
+        _validate_strength(parser, strength, side_name)
+        return LadderSide(kind=kind, strength=strength)
+
+    if preset_side is not None:
+        return preset_side
+
+    return default_side
+
+
+def _write_csv_summary(
+    csv_path: str,
+    side_a: LadderSide,
+    side_b: LadderSide,
+    summary: LadderResult,
+    matches: int,
+    seed: int,
+    swap_seats: bool,
+    max_rounds: int,
+    max_turns_per_round: int,
+) -> None:
+    path = Path(csv_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(
+            [
+                "side_a_kind",
+                "side_a_strength",
+                "side_b_kind",
+                "side_b_strength",
+                "matches",
+                "seed",
+                "swap_seats",
+                "max_rounds",
+                "max_turns_per_round",
+                "side_a_wins",
+                "side_b_wins",
+                "ties",
+                "side_a_avg_total",
+                "side_b_avg_total",
+                "stalled_rounds",
+            ]
+        )
+        writer.writerow(
+            [
+                side_a.kind,
+                side_a.strength,
+                side_b.kind,
+                side_b.strength,
+                matches,
+                seed,
+                swap_seats,
+                max_rounds,
+                max_turns_per_round,
+                summary.side_a_wins,
+                summary.side_b_wins,
+                summary.ties,
+                f"{summary.side_a_avg_total:.3f}",
+                f"{summary.side_b_avg_total:.3f}",
+                summary.stalled_rounds,
+            ]
+        )
+
+
+def _print_presets() -> None:
+    print("Available presets:")
+    for preset in _preset_definitions().values():
+        print(
+            f"  {preset.name}: {preset.side_a.kind}:{preset.side_a.strength} vs "
+            f"{preset.side_b.kind}:{preset.side_b.strength} ({preset.description})"
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
+    if args.list_presets:
+        _print_presets()
+        return 0
+
     config: dict[str, object] = {}
     if args.config:
         config = _load_json_config(parser, args.config)
+
+    if args.preset is None:
+        config_preset = config.get("preset")
+        if isinstance(config_preset, str):
+            if config_preset not in _preset_definitions():
+                parser.error(
+                    f"config preset must be one of: {', '.join(sorted(_preset_definitions()))}"
+                )
+            args.preset = config_preset
 
     config_matches = config.get("matches")
     if isinstance(config_matches, int):
@@ -333,12 +479,15 @@ def main(argv: list[str] | None = None) -> int:
     config_swap = config.get("swap_seats")
     if isinstance(config_swap, bool):
         args.no_swap_seats = not config_swap
+    config_csv = config.get("csv")
+    if args.csv is None and isinstance(config_csv, str):
+        args.csv = config_csv
+
+    preset = _preset_definitions().get(args.preset) if args.preset else None
 
     _validate_positive(parser, args.matches, "--matches")
     _validate_positive(parser, args.max_rounds, "--max-rounds")
     _validate_positive(parser, args.max_turns_per_round, "--max-turns-per-round")
-    _validate_strength(parser, args.side_a_strength, "--side-a-strength")
-    _validate_strength(parser, args.side_b_strength, "--side-b-strength")
 
     side_a = _resolve_side(
         parser=parser,
@@ -348,6 +497,8 @@ def main(argv: list[str] | None = None) -> int:
         cfg=config,
         cfg_key="side_a",
         side_name="side_a",
+        preset_side=preset.side_a if preset else None,
+        default_side=LadderSide(kind="safe", strength=30),
     )
     side_b = _resolve_side(
         parser=parser,
@@ -357,6 +508,8 @@ def main(argv: list[str] | None = None) -> int:
         cfg=config,
         cfg_key="side_b",
         side_name="side_b",
+        preset_side=preset.side_b if preset else None,
+        default_side=LadderSide(kind="safe", strength=80),
     )
     summary = run_ladder(
         side_a=side_a,
@@ -379,6 +532,21 @@ def main(argv: list[str] | None = None) -> int:
         f"Avg total score: side A {summary.side_a_avg_total:.1f} | side B {summary.side_b_avg_total:.1f}"
     )
     print(f"Stalled rounds resolved: {summary.stalled_rounds}")
+
+    if args.csv:
+        _write_csv_summary(
+            csv_path=args.csv,
+            side_a=side_a,
+            side_b=side_b,
+            summary=summary,
+            matches=args.matches,
+            seed=args.seed,
+            swap_seats=not args.no_swap_seats,
+            max_rounds=args.max_rounds,
+            max_turns_per_round=args.max_turns_per_round,
+        )
+        print(f"CSV written: {args.csv}")
+
     return 0
 
 

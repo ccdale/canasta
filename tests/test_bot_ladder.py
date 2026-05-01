@@ -103,3 +103,68 @@ def test_cli_accepts_json_config_file(tmp_path, capsys) -> None:
     assert code == 0
     assert "Ladder: greedy:25 vs greedy:90" in captured.out
     assert "swap seats: False" in captured.out
+
+
+def test_cli_lists_presets(capsys) -> None:
+    from canasta.bot_ladder import main
+
+    code = main(["--list-presets"])
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "Available presets:" in captured.out
+    assert "safe-30v80" in captured.out
+
+
+def test_cli_accepts_named_preset(capsys) -> None:
+    from canasta.bot_ladder import main
+
+    code = main(
+        [
+            "--preset",
+            "safe-30v80",
+            "-m",
+            "2",
+            "-s",
+            "2",
+            "--max-rounds",
+            "2",
+            "--max-turns-per-round",
+            "80",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "Ladder: safe:30 vs safe:80" in captured.out
+
+
+def test_cli_writes_csv_summary(tmp_path, capsys) -> None:
+    from canasta.bot_ladder import main
+
+    csv_path = tmp_path / "results" / "ladder.csv"
+    code = main(
+        [
+            "safe:30",
+            "safe:80",
+            "-m",
+            "2",
+            "-s",
+            "5",
+            "--max-rounds",
+            "2",
+            "--max-turns-per-round",
+            "80",
+            "--csv",
+            str(csv_path),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert csv_path.exists()
+    rows = csv_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(rows) == 2
+    assert rows[0].startswith("side_a_kind,side_a_strength")
+    assert ",safe,30,safe,80," in f",{rows[1]},"
+    assert "CSV written:" in captured.out
