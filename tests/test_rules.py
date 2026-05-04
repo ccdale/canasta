@@ -205,10 +205,17 @@ class TestCanPickupFrozenDiscard:
         assert not ok
         assert "natural" in msg
 
-    def test_wrong_card_count_rejected(self):
+    def test_too_few_cards_rejected(self):
         ok, msg = can_pickup_frozen_discard(c("A", "D"), [c("A", "S")])
         assert not ok
-        assert "exactly 2" in msg
+        assert "at least 2" in msg
+
+    def test_more_than_two_matching_naturals_allowed(self):
+        ok, _ = can_pickup_frozen_discard(
+            c("Q", "D"),
+            [c("Q", "S"), c("Q", "H"), c("Q", "C"), c("Q", "D")],
+        )
+        assert ok
 
     def test_freeze_card_on_top_rejected(self):
         ok, msg = can_pickup_frozen_discard(c("3", "S"), [c("3", "S"), c("3", "C")])

@@ -49,8 +49,8 @@ def can_pickup_frozen_discard(top_discard: Card, cards: list[Card]) -> tuple[boo
             False,
             "cannot pick up a frozen pile with a wild card or black three on top",
         )
-    if len(cards) != 2:
-        return False, "frozen discard pickup requires exactly 2 hand cards"
+    if len(cards) < 2:
+        return False, "frozen discard pickup requires at least 2 hand cards"
     if any(card.is_wild() for card in cards):
         return False, "frozen discard pickup requires natural matching cards"
     if any(card.rank != top_discard.rank for card in cards):

@@ -408,13 +408,31 @@ class TestPickupDiscard:
         with pytest.raises(RuleError, match="matching the top discard"):
             eng.pickup_discard([0, 1])
 
-    def test_frozen_pile_rejects_extra_cards(self):
+    def test_frozen_pile_rejects_too_few_matching_cards(self):
         eng = make_engine()
         self._set_discard(eng, [Card("3", "C"), Card("A", "D")])
-        self._inject_hand(eng, [Card("A", "S"), Card("A", "H"), Card("A", "C")])
+        self._inject_hand(eng, [Card("A", "S")])
 
-        with pytest.raises(RuleError, match="exactly 2"):
-            eng.pickup_discard([0, 1, 2])
+        with pytest.raises(RuleError, match="at least 2"):
+            eng.pickup_discard([0])
+
+    def test_frozen_pile_opening_allows_four_matching_naturals(self):
+        # Regression: before opening, selecting 4 matching hand naturals with
+        # a matching top discard on a frozen pile should be legal.
+        eng = make_engine()
+        self._set_discard(eng, [Card("3", "C"), Card("Q", "D")])
+        self._inject_hand(
+            eng,
+            [Card("Q", "S"), Card("Q", "H"), Card("Q", "C"), Card("Q", "D")],
+        )
+
+        result = eng.pickup_discard([0, 1, 2, 3])
+
+        assert "picked up" in result.message
+        melds = eng.state.players[PlayerId.NORTH].melds
+        assert len(melds) == 1
+        assert melds[0].natural_rank == "Q"
+        assert len(melds[0].cards) == 5
 
     def test_frozen_pile_rejects_black_three_on_top(self):
         eng = make_engine()
