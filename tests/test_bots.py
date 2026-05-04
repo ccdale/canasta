@@ -6,6 +6,7 @@ from canasta.bot_strategies import (
     PlannerBot,
     RandomBot,
     SafeBot,
+    _wild_augmented_candidates,
 )
 from canasta.bots import build_bot, play_bot_turn
 from canasta.engine import CanastaEngine
@@ -234,3 +235,84 @@ class TestDynamicOpeningThresholdIntegration:
         actions = play_bot_turn(eng, GreedyBot(strength=100))
 
         assert not any(action.startswith("created") for action in actions)
+
+
+class TestWildAugmentedCandidates:
+    def test_returns_empty_when_no_wilds(self):
+        hand = [Card("K", "S"), Card("K", "H"), Card("K", "D")]
+        assert _wild_augmented_candidates(hand) == []
+
+    def test_returns_empty_when_no_natural_pairs(self):
+        hand = [Card("K", "S"), Card("Q", "H"), Card("2", "D")]
+        assert _wild_augmented_candidates(hand) == []
+
+    def test_generates_pair_plus_wild(self):
+        hand = [Card("K", "S"), Card("K", "H"), Card("2", "D")]
+        candidates = _wild_augmented_candidates(hand)
+        assert len(candidates) == 1
+        selected = [hand[i] for i in candidates[0]]
+        ranks = [c.rank for c in selected]
+        assert ranks.count("K") == 2
+        assert ranks.count("2") == 1
+
+    def test_wilds_never_exceed_naturals(self):
+        hand = [
+            Card("K", "S"),
+            Card("K", "H"),
+            Card("2", "D"),
+            Card("2", "S"),
+            Card("JOKER", ""),
+        ]
+        candidates = _wild_augmented_candidates(hand)
+        for idxs in candidates:
+            cards = [hand[i] for i in idxs]
+            naturals = sum(1 for c in cards if not c.is_wild())
+            wilds = sum(1 for c in cards if c.is_wild())
+            assert naturals >= wilds, f"wilds ({wilds}) exceeded naturals ({naturals})"
+
+    def test_high_strength_greedy_uses_wild_in_meld(self):
+        # Post-opening hand with 2 kings and 1 joker — high strength should meld them.
+        hand = [Card("K", "S"), Card("K", "H"), Card("JOKER", ""), Card("4", "D")]
+        idxs = GreedyBot(strength=80).choose_meld_indexes(hand, opening_required=False)
+        assert idxs is not None
+        selected = [hand[i] for i in idxs]
+        ranks = [c.rank for c in selected]
+        assert "K" in ranks
+        assert "JOKER" in ranks
+
+    def test_low_strength_greedy_ignores_wild_meld(self):
+        # Below threshold: only natural 3+ groups qualify.
+        hand = [Card("K", "S"), Card("K", "H"), Card("JOKER", ""), Card("4", "D")]
+        idxs = GreedyBot(strength=30).choose_meld_indexes(hand, opening_required=False)
+        # 2 kings is not a valid natural meld alone, so no candidate is available.
+        assert idxs is None
+
+    def test_safe_bot_very_low_strength_never_melds_post_opening(self):
+        hand = [Card("A", "S"), Card("A", "H"), Card("A", "D"), Card("A", "C")]
+        assert SafeBot(strength=10).choose_meld_indexes(hand, opening_required=False) is None
+
+    def test_safe_bot_mid_strength_melds_large_groups(self):
+        hand = [Card("A", "S"), Card("A", "H"), Card("A", "D"), Card("A", "C")]
+        # strength 30 is in the 4+-group tier — 4 aces qualifies.
+        idxs = SafeBot(strength=30).choose_meld_indexes(hand, opening_required=False)
+        assert idxs is not None
+        assert len(idxs) >= 4
+
+    def test_safe_bot_mid_strength_skips_small_groups(self):
+        hand = [Card("A", "S"), Card("A", "H"), Card("A", "D")]
+        # Only 3 aces — below the 4-card threshold for the conservative tier.
+        assert SafeBot(strength=30).choose_meld_indexes(hand, opening_required=False) is None
+
+    def test_safe_bot_high_strength_melds_small_groups(self):
+        hand = [Card("A", "S"), Card("A", "H"), Card("A", "D")]
+        # strength 60 enters the standard natural-meld tier.
+        idxs = SafeBot(strength=60).choose_meld_indexes(hand, opening_required=False)
+        assert idxs is not None
+
+    def test_safe_bot_very_high_strength_uses_wild_candidates(self):
+        hand = [Card("K", "S"), Card("K", "H"), Card("2", "D"), Card("4", "C")]
+        # strength 80 >= 70 gets wild augmented candidates.
+        idxs = SafeBot(strength=80).choose_meld_indexes(hand, opening_required=False)
+        assert idxs is not None
+        selected = [hand[i] for i in idxs]
+        assert any(c.is_wild() for c in selected)

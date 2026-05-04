@@ -73,6 +73,8 @@ class GreedyBot:
         candidates = _eligible_natural_meld_candidates(
             hand, opening_required, opening_minimum
         )
+        if not opening_required and self.strength >= 50:
+            candidates = candidates + _wild_augmented_candidates(hand)
         if not candidates:
             return None
         # Maximize immediate card value to push opening and canasta progress.
@@ -129,18 +131,31 @@ class SafeBot:
         candidates = _eligible_natural_meld_candidates(
             hand, opening_required, opening_minimum
         )
-        if not candidates:
-            return None
 
         if not opening_required:
-            # At higher strengths, SafeBot still opens up to capture clear value.
-            if self.strength < 60:
+            # Tiered post-opening meld conservatism.
+            if self.strength < 20:
+                # Very safe: never meld after opening.
+                return None
+            if self.strength < 50:
+                # Conservative: only meld large natural groups (4+ cards).
+                big = [c for c in candidates if len(c) >= 4]
+                if not big:
+                    return None
+                return max(big, key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)))
+            # Standard strength: meld any natural candidates.
+            if self.strength >= 70:
+                candidates = candidates + _wild_augmented_candidates(hand)
+            if not candidates:
                 return None
             return max(
                 candidates,
                 key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)),
             )
 
+        # Opening required: natural candidates only.
+        if not candidates:
+            return None
         # Open with the lowest-value legal candidate that satisfies threshold.
         return min(
             candidates,
@@ -184,6 +199,8 @@ class AggroBot:
         candidates = _eligible_natural_meld_candidates(
             hand, opening_required, opening_minimum
         )
+        if not opening_required and self.strength >= 50:
+            candidates = candidates + _wild_augmented_candidates(hand)
         if not candidates:
             return None
         return max(
@@ -197,16 +214,16 @@ class AggroBot:
             raise RuleError("bot could not find a legal discard")
 
         if self.strength < 40:
-            # Baseline aggro: dump highest points first; weak wild preservation.
+            # Baseline aggro: dump highest points first; treat wilds as valuable.
             return max(
                 safe,
                 key=lambda idx: (hand_score([hand[idx]]), hand[idx].is_wild()),
             )
 
-        # Stronger aggro: still shed points, but avoid wild discards when possible.
+        # Stronger aggro: shed highest-point naturals; keep wilds for meld extension.
         non_wild = [idx for idx in safe if not hand[idx].is_wild()]
-        candidates = non_wild if non_wild else safe
-        return max(candidates, key=lambda idx: hand_score([hand[idx]]))
+        discard_pool = non_wild if non_wild else safe
+        return max(discard_pool, key=lambda idx: hand_score([hand[idx]]))
 
 
 @dataclass
@@ -225,6 +242,8 @@ class PlannerBot:
         candidates = _eligible_natural_meld_candidates(
             hand, opening_required, opening_minimum
         )
+        if not opening_required and self.strength >= 50:
+            candidates = candidates + _wild_augmented_candidates(hand)
         if not candidates:
             return None
 
@@ -367,6 +386,32 @@ def _opening_split_candidates(
 
     walk(0, [])
     return results
+
+
+def _wild_augmented_candidates(hand: list[Card]) -> list[list[int]]:
+    """Find meld candidates combining 2+ same-rank naturals with wild cards.
+
+    Generates natural-pair-plus-wild melds (e.g. K K Joker) that the
+    natural-only candidate finder misses.  Only called for post-opening turns.
+    """
+    wild_idxs = [i for i, card in enumerate(hand) if card.is_wild()]
+    if not wild_idxs:
+        return []
+    by_rank: dict[str, list[int]] = {}
+    for i, card in enumerate(hand):
+        if not card.is_wild():
+            by_rank.setdefault(card.rank, []).append(i)
+    candidates: list[list[int]] = []
+    for nat_idxs in by_rank.values():
+        if len(nat_idxs) < 2:
+            continue  # need at least 2 naturals to satisfy naturals >= wilds
+        for num_nats in range(2, len(nat_idxs) + 1):
+            max_wilds = min(len(wild_idxs), num_nats)  # wilds must not exceed naturals
+            for num_wilds in range(1, max_wilds + 1):
+                if num_nats + num_wilds < 3:
+                    continue
+                candidates.append(nat_idxs[:num_nats] + wild_idxs[:num_wilds])
+    return candidates
 
 
 def _natural_density(cards: list[Card]) -> int:
