@@ -13,6 +13,11 @@ from canasta.bot_strategies import (
 )
 from canasta.engine import CanastaEngine
 from canasta.model import RuleError
+from canasta.rules import (
+    discard_pile_is_frozen,
+    opening_meld_value,
+    validate_pickup_cards,
+)
 
 BotKind = Literal["random", "greedy", "safe", "aggro", "planner"]
 
@@ -58,7 +63,14 @@ def play_bot_turn(engine: CanastaEngine, bot: TurnBot) -> list[str]:
         List of action message strings describing what the bot did.
     """
     actions: list[str] = []
-    actions.append(engine.draw_stock().message)
+    pickup_indexes = _choose_pickup_indexes(engine, bot)
+    if pickup_indexes is not None:
+        try:
+            actions.append(engine.pickup_discard(pickup_indexes).message)
+        except RuleError:
+            actions.append(engine.draw_stock().message)
+    else:
+        actions.append(engine.draw_stock().message)
 
     while True:
         player = engine.state.players[engine.state.current_player]
@@ -91,3 +103,59 @@ def play_bot_turn(engine: CanastaEngine, bot: TurnBot) -> list[str]:
     discard_idx = bot.choose_discard_index(engine.current_hand())
     actions.append(engine.discard(discard_idx).message)
     return actions
+
+
+def _choose_pickup_indexes(engine: CanastaEngine, bot: TurnBot) -> list[int] | None:
+    """Return hand indexes for a legal pickup candidate, if one exists."""
+    if bot.strength < 50:
+        return None
+    if engine.state.turn_drawn or not engine.state.discard:
+        return None
+
+    top_discard = engine.state.discard[-1]
+    hand = engine.current_hand()
+    naturals_same_rank = [
+        idx
+        for idx, card in enumerate(hand)
+        if not card.is_wild() and card.rank == top_discard.rank
+    ]
+    wilds = [idx for idx, card in enumerate(hand) if card.is_wild()]
+
+    candidates: list[list[int]] = []
+    frozen = discard_pile_is_frozen(engine.state.discard)
+    if frozen:
+        if len(naturals_same_rank) >= 2:
+            candidates.append([naturals_same_rank[0], naturals_same_rank[1]])
+    else:
+        if len(naturals_same_rank) >= 2:
+            candidates.append([naturals_same_rank[0], naturals_same_rank[1]])
+        if naturals_same_rank and wilds:
+            candidates.append([naturals_same_rank[0], wilds[0]])
+
+    if not candidates:
+        return None
+
+    player = engine.state.players[engine.state.current_player]
+    opening_required = len(player.melds) == 0
+    opening_minimum = engine.opening_meld_minimum(engine.state.current_player)
+
+    legal: list[tuple[list[int], int, int]] = []
+    for candidate in candidates:
+        hand_cards = [hand[i] for i in candidate]
+        groups, _ = validate_pickup_cards(
+            top_discard, hand_cards, allow_multi_rank=opening_required
+        )
+        if groups is None:
+            continue
+        opening_value = sum(opening_meld_value(group) for group in groups)
+        if opening_required and opening_value < opening_minimum:
+            continue
+        natural_count = sum(1 for card in hand_cards if not card.is_wild())
+        legal.append((candidate, opening_value, natural_count))
+
+    if not legal:
+        return None
+
+    # Prefer higher opening value and natural density for stable, safer pickup.
+    best, _, _ = max(legal, key=lambda row: (row[1], row[2]))
+    return best

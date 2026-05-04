@@ -10,7 +10,7 @@ from canasta.bot_strategies import (
 )
 from canasta.bots import build_bot, play_bot_turn
 from canasta.engine import CanastaEngine
-from canasta.model import Card, PlayerId
+from canasta.model import Card, Meld, PlayerId
 
 
 def make_engine() -> CanastaEngine:
@@ -99,6 +99,35 @@ class TestBotTurns:
         selected = [hand[i] for i in idxs]
         ranks = {card.rank for card in selected}
         assert ranks == {"K", "8"}
+
+    def test_bot_picks_up_discard_before_drawing_unfrozen(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].melds.append(
+            Meld(cards=[Card("7", "S"), Card("7", "H"), Card("7", "D")])
+        )
+        eng.state.discard = [Card("9", "C"), Card("A", "D")]
+        hand = eng.state.players[PlayerId.NORTH].hand
+        hand[0] = Card("A", "S")
+        hand[1] = Card("A", "H")
+
+        actions = play_bot_turn(eng, GreedyBot(strength=90))
+
+        assert actions[0].startswith("picked up")
+
+    def test_bot_picks_up_discard_before_drawing_frozen(self):
+        eng = make_engine()
+        eng.state.players[PlayerId.NORTH].melds.append(
+            Meld(cards=[Card("7", "S"), Card("7", "H"), Card("7", "D")])
+        )
+        # Frozen because pile contains a freeze card (wild 2).
+        eng.state.discard = [Card("2", "C"), Card("A", "D")]
+        hand = eng.state.players[PlayerId.NORTH].hand
+        hand[0] = Card("A", "S")
+        hand[1] = Card("A", "H")
+
+        actions = play_bot_turn(eng, PlannerBot(strength=90))
+
+        assert actions[0].startswith("picked up")
 
 
 class TestRandomBot:
@@ -289,7 +318,10 @@ class TestWildAugmentedCandidates:
 
     def test_safe_bot_very_low_strength_never_melds_post_opening(self):
         hand = [Card("A", "S"), Card("A", "H"), Card("A", "D"), Card("A", "C")]
-        assert SafeBot(strength=10).choose_meld_indexes(hand, opening_required=False) is None
+        assert (
+            SafeBot(strength=10).choose_meld_indexes(hand, opening_required=False)
+            is None
+        )
 
     def test_safe_bot_mid_strength_melds_large_groups(self):
         hand = [Card("A", "S"), Card("A", "H"), Card("A", "D"), Card("A", "C")]
@@ -301,7 +333,10 @@ class TestWildAugmentedCandidates:
     def test_safe_bot_mid_strength_skips_small_groups(self):
         hand = [Card("A", "S"), Card("A", "H"), Card("A", "D")]
         # Only 3 aces — below the 4-card threshold for the conservative tier.
-        assert SafeBot(strength=30).choose_meld_indexes(hand, opening_required=False) is None
+        assert (
+            SafeBot(strength=30).choose_meld_indexes(hand, opening_required=False)
+            is None
+        )
 
     def test_safe_bot_high_strength_melds_small_groups(self):
         hand = [Card("A", "S"), Card("A", "H"), Card("A", "D")]
