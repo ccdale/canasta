@@ -1,142 +1,117 @@
-# Bot Strength Strategy (Phase 4)
+# Bot Strength Strategy (Current Behavior)
 
-## Purpose
-This document describes a practical plan for evolving the existing bots into a single strength-scaled system, where `strength=1` behaves close to current baseline and `strength=100` is very hard to beat for most players.
+## What this page is for
+This page explains how bot strength works today in the shipped implementation.
 
-The focus is not perfect play (which is expensive and likely unnecessary for UX), but controlled, measurable improvement across a `1-100` strength dial.
+It focuses on a practical question:
+- What does a strong bot do differently from a weak bot?
 
-## Design Goals
-- Keep all moves legal and rules-compliant at every strength.
-- Preserve deterministic reproducibility with existing seed support.
-- Make difficulty feel monotonic: higher strength should usually play better.
-- Keep GUI responsiveness acceptable at high strengths.
-- Avoid abrupt behavior jumps where possible.
+This is intentionally concrete and code-aligned, not a future architecture proposal.
 
-## Current Baseline Summary
-Current bot styles (`random`, `greedy`, `safe`, `aggro`, `planner`) are mostly heuristic and shallow.
-They are good enough for playable matches, but they do not consistently optimize:
-- canasta completion urgency,
-- opponent denial (freeze/discard safety),
-- pickup risk/reward timing,
-- multi-turn planning.
+## Quick summary
+The strength setting is a heuristic dial, not deep search.
 
-## Proposed Architecture
-Introduce one policy engine with tunable parameters and optional lookahead:
+Higher strength mainly improves play through four levers:
+1. Better discard choices (preserve wilds and grouped ranks, freeze pressure where useful).
+2. Better post-opening meld choices (including wild-assisted melds at higher strength).
+3. Discard-pile pickup before stock draw (enabled only at higher strength).
+4. Safer opening and conversion behavior that reduces stalls and blunders.
 
-1. `BotPolicyConfig`
-- Strength-derived knobs (search depth, rollout count, risk weight, bluff tolerance, etc.).
+## One important clarification
+"Naturals only" does not mean all opening meld cards must be natural.
 
-2. `PositionEvaluator`
-- Scores a state using weighted features (meld progress, canasta potential, hand liability, opponent threat).
+The naturals-only rule applies to opening-threshold scoring.
+- Opening threshold checks count natural card value.
+- Wild cards can still be present in valid meld groups as long as meld legality is satisfied.
 
-3. `MoveGenerator`
-- Enumerates legal action bundles for a turn (draw path, meld/add sequence, discard).
+## Shared strength behavior across bots
+These are shared system-level effects:
 
-4. `SearchLayer` (adaptive)
-- Low strengths: pure heuristic pick.
-- Mid strengths: limited beam search or shallow expectimax.
-- High strengths: deeper search with pruning + selective rollouts.
+1. Strength range is 1-100.
+2. Discard pickup is attempted before stock draw only when strength >= 50.
+3. Pickup legality respects frozen vs unfrozen discard rules.
+4. If pickup fails for any reason, bot falls back to stock draw.
 
-5. `StrengthMapper`
-- Converts `1-100` to policy knobs using smooth functions and soft bands.
+### Pickup behavior details
+When pickup is considered:
+- Frozen pile:
+  - Bot only considers a natural matching pair for the top discard rank.
+- Unfrozen pile:
+  - Bot considers natural pair for top rank.
+  - Bot also considers natural + wild for top rank.
+- Candidate choice prefers higher opening value, then higher natural density.
 
-## Strength Gauge Model (1-100)
-Use continuous scaling plus behavior bands.
+## Bot-by-bot: weak vs strong
 
-### Band A: 1-20 (Baseline / Casual)
-- Minimal lookahead (depth 0-1).
-- Simple meld selection, limited opponent modeling.
-- Higher tolerance for weak discards.
-- Expected outcome: roughly current behavior, beatable by attentive players.
+### Random bot
+- Core behavior:
+  - Meld/discard choices are random among legal candidates.
+- Strength impact:
+  - No strategic scaling in meld/discard policy itself.
+  - At strength >= 50 it can still use the shared pickup-before-draw logic.
 
-### Band B: 21-40 (Improved Fundamentals)
-- Better discard safety filtering.
-- Better add-to-existing-meld preference for canasta progress.
-- Basic frozen-pile awareness.
-- Expected outcome: fewer obvious mistakes, more consistent openings.
+### Greedy bot
+- Weak (roughly <34):
+  - Discards lowest points first with weak wild preservation.
+- Mid (34-66):
+  - Avoids discarding wilds more consistently.
+- Strong (>=67):
+  - Keeps wilds, preserves grouped ranks, applies freeze-pressure preference.
+- Meld scaling:
+  - After opening, strength >= 50 can include wild-assisted meld candidates.
 
-### Band C: 41-60 (Solid Intermediate)
-- Short lookahead (depth 1-2) over candidate turn lines.
-- Better pickup timing and opening-threshold planning.
-- Starts preserving key cards for likely next-turn payoff.
-- Expected outcome: wins clearly more often than baseline bots.
+### Safe bot
+- Post-opening meld policy is strongly tiered:
+  - <20: never meld after opening.
+  - 20-49: meld only large natural groups (4+ cards).
+  - 50-69: meld natural groups of 3+ cards.
+  - >=70: also consider wild-assisted meld candidates.
+- Discard policy:
+  - Prefers defensive/safe discards (black threes, singleton shedding, avoid wilds).
 
-### Band D: 61-80 (Advanced)
-- Deeper selective search (depth 2-3) with beam pruning.
-- Opponent threat estimation (likely canasta race, discard punishment).
-- Better hand-endgame shaping and tempo control.
-- Expected outcome: difficult for most casual/intermediate human players.
+### Aggro bot
+- Weak (<40):
+  - Discards high-point cards aggressively, including wilds more often.
+- Strong (>=40):
+  - Still aggressive, but preserves wilds more and sheds high-point naturals first.
+- Meld scaling:
+  - After opening, strength >= 50 includes wild-assisted meld candidates.
 
-### Band E: 81-100 (Expert / Near-Unbeatable in Practice)
-- Deeper targeted search with stronger pruning and fallback rollouts.
-- Strong denial play (discard suppression, freeze pressure) when high EV.
-- Better conversion of lead states into wins.
-- Expected outcome: statistically dominant against lower strengths and current bots.
+### Planner bot
+- Weak (<34):
+  - Simpler discard risk ordering.
+- Strong (>=34):
+  - Better preservation of wilds and grouped ranks.
+- Meld scaling:
+  - After opening, strength >= 50 includes wild-assisted meld candidates.
 
-## How Strength Changes Outcomes
-Strength should affect outcomes through three primary channels:
+## Opening meld behavior in practice
+Current implementation supports:
+1. Split-rank opening melds.
+2. Wild cards in split-rank opening melds, as long as each resulting meld group is legal.
 
-1. Error Rate Reduction
-- Fewer illegal-attempt fallbacks and fewer low-value legal moves.
-- Lower blunder frequency on discard and pickup decisions.
+Example that is valid:
+- A A A plus K K 2
 
-2. Conversion Efficiency
-- Higher probability of turning promising meld states into canastas and round wins.
-- Better preservation of high-value future lines.
+Opening threshold still uses naturals for scoring evaluation.
 
-3. Opponent Suppression
-- More effective denial via discard choices and freeze dynamics.
-- Better timing to avoid giving opponents strong pickup opportunities.
+## Why stronger bots now feel stronger
+In ladder play, stronger settings improved by:
+1. Converting hands more efficiently after opening (more legal productive melds).
+2. Avoiding destructive discards (especially wilds and useful grouped ranks).
+3. Using discard pickup when it is legal and favorable.
+4. Reducing stock-depletion stall patterns compared to lower-strength play.
 
-In practical terms, if we run many mirror-ish matches:
-- `S60` should significantly outperform `S20`.
-- `S80` should significantly outperform `S40`.
-- `S100` should dominate `S1-S30` over large samples.
+## Current limitations
+Strength is still heuristic and threshold-driven.
 
-## Strength-to-Parameter Mapping (Initial)
-Example knob mapping (to be tuned with telemetry):
+What this means:
+1. It is not full lookahead search.
+2. Some matchups can still show variance or occasional inversions if thresholds interact oddly.
+3. Opening candidate generation for bots is still mostly natural-first, even though engine rules now allow more split-with-wild opening shapes.
 
-- `search_depth`: stepwise by strength (0,1,2,3).
-- `beam_width`: linear increase with strength.
-- `rollout_count`: near-zero below 60, then ramps sharply.
-- `discard_risk_weight`: increases smoothly with strength.
-- `canasta_urgency_weight`: increases with strength and game phase.
-- `opponent_model_weight`: near-zero below 40, strong above 70.
-
-Use interpolation and clamped ranges to avoid sudden spikes in behavior.
-
-## Performance and Responsiveness
-- Set hard per-turn compute budgets (time and node caps).
-- Use iterative deepening so a valid move is always available.
-- For GUI, keep "thinking" latency in a comfortable range.
-- If budget exhausted, return best-so-far candidate from the current frontier.
-
-## Validation Plan
-
-Use **match results** (to 5000 points) as the primary difficulty signal rather than single-round outcomes.
-1. Ladder Evaluation
-- Run bot-vs-bot matrices across representative strengths (e.g., 1, 20, 40, 60, 80, 100).
-- Evaluate using match win rate, average rounds per match, and average final margin.
-- Require monotonic trend (allowing small statistical noise).
-
-2. Regression Safety
-- Keep current legality/rules tests intact.
-- Add targeted tests for policy decisions that should never regress (e.g., obvious add-to-meld improvements).
-
-3. Stability & Determinism
-- Verify same seed + same strength => reproducible behavior.
-- Verify no pathological latency at high strengths under GUI constraints.
-
-## Rollout Plan
-1. Add strength parameter plumbing (CLI + GUI + engine/bot config).
-2. Introduce unified policy engine with baseline-equivalent mode.
-3. Layer stronger heuristics and discard safety first.
-4. Add selective search and opponent modeling for upper bands.
-5. Calibrate with ladder data and adjust mapping curves.
-6. Finalize acceptance thresholds for v2.x bot-strength milestone.
-
-## Success Criteria
-- Strength setting is user-visible and intuitive.
-- Higher strengths outperform lower strengths statistically.
-- Top strength feels "very hard" without causing UI stalls.
-- Existing gameplay correctness remains unchanged.
+## Planned next tuning direction
+Continue improving monotonic strength feel by:
+1. Expanding pickup candidate generation and ranking depth.
+2. Smoothing threshold cliffs where behavior jumps are too abrupt.
+3. Adding broader matchup telemetry across bot styles and strengths.
