@@ -142,7 +142,10 @@ class SafeBot:
                 big = [c for c in candidates if len(c) >= 4]
                 if not big:
                     return None
-                return max(big, key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)))
+                return max(
+                    big,
+                    key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)),
+                )
             # Standard strength: meld any natural candidates.
             if self.strength >= 70:
                 candidates = candidates + _wild_augmented_candidates(hand)

@@ -1,6 +1,6 @@
 [project]
 name = "canasta"
-version = "2.1.0"
+version = "2.1.1"
 description = "Learn-by-building standalone Canasta in Python"
 readme = "README.md"
 requires-python = ">=3.12"

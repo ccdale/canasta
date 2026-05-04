@@ -132,7 +132,10 @@ def split_meld_cards(
 
     for rank, group in groups.items():
         if len(group) < 3:
-            return None, f"each rank in a split meld must contain at least 3 cards (rank {rank} has {len(group)})"
+            return (
+                None,
+                f"each rank in a split meld must contain at least 3 cards (rank {rank} has {len(group)})",
+            )
         ok_g, reason_g = validate_meld_cards(group)
         if not ok_g:
             return None, reason_g
