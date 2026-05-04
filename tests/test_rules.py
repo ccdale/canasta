@@ -84,7 +84,7 @@ class TestSplitMeldCards:
         assert len(groups) == 2
         assert {group[0].rank for group in groups} == {"6", "Q"}
 
-    def test_opening_split_rejects_wild_cards(self):
+    def test_opening_split_allows_wild_cards(self):
         groups, msg = split_meld_cards(
             [
                 c("A", "S"),
@@ -97,8 +97,35 @@ class TestSplitMeldCards:
             allow_multi_rank=True,
         )
 
+        assert msg == "ok"
+        assert groups is not None
+        assert len(groups) == 2
+        by_rank = {
+            next(card.rank for card in group if not card.is_wild()): group
+            for group in groups
+        }
+        assert len(by_rank["A"]) == 3
+        assert len(by_rank["K"]) == 3
+        assert sum(1 for card in by_rank["K"] if card.is_wild()) == 1
+
+    def test_opening_split_rejects_unassignable_wild_cards(self):
+        groups, msg = split_meld_cards(
+            [
+                c("A", "S"),
+                c("A", "H"),
+                c("K", "S"),
+                c("K", "H"),
+                c("2", "C"),
+                c("2", "D"),
+                c("2", "H"),
+                c("JOKER"),
+                c("JOKER"),
+            ],
+            allow_multi_rank=True,
+        )
+
         assert groups is None
-        assert "wild" in msg
+        assert "cannot assign" in msg
 
 
 class TestCanAddCardsToMeld:
@@ -310,12 +337,21 @@ class TestValidatePickupCards:
 
         assert groups is not None
         assert len(groups) == 2
-        assert all(c("Q", "D").rank == card.rank for card in groups[0] if not card.is_wild())
+        assert all(
+            c("Q", "D").rank == card.rank for card in groups[0] if not card.is_wild()
+        )
 
     def test_split_rank_rejects_too_many_wilds(self):
         # 2 queens + top queen + 1 ten, but 3 wilds — wilds exceed naturals in T group.
         top = c("Q", "D")
-        hand = [c("Q", "S"), c("Q", "H"), c("T", "S"), c("2", "C"), c("2", "H"), c("2", "D")]
+        hand = [
+            c("Q", "S"),
+            c("Q", "H"),
+            c("T", "S"),
+            c("2", "C"),
+            c("2", "H"),
+            c("2", "D"),
+        ]
         groups, msg = validate_pickup_cards(top, hand, allow_multi_rank=True)
 
         # T group: 1 natural, wilds would exceed it → validation fails

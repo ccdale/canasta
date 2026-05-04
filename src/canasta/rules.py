@@ -95,17 +95,47 @@ def split_meld_cards(
     wilds = [card for card in cards if card.rank in WILD_RANKS]
     if not naturals:
         return None, "meld cannot be all wild cards"
-    if wilds:
-        return None, "split-rank melds cannot include wild cards in one action"
 
-    groups: dict[str, list[Card]] = {}
-    for card in cards:
-        groups.setdefault(card.rank, []).append(card)
+    naturals_by_rank: dict[str, list[Card]] = {}
+    for card in naturals:
+        naturals_by_rank.setdefault(card.rank, []).append(card)
 
-    if len(groups) < 2:
+    if len(naturals_by_rank) < 2:
         return None, reason
-    if any(len(group) < 3 for group in groups.values()):
-        return None, "each rank in a split meld must contain at least 3 cards"
+
+    if wilds:
+        # Assign wilds to groups with the fewest naturals first while
+        # preserving naturals >= wilds in every resulting group.
+        wild_counts: dict[str, int] = {rank: 0 for rank in naturals_by_rank}
+        remaining = len(wilds)
+        for rank in sorted(naturals_by_rank, key=lambda r: len(naturals_by_rank[r])):
+            if remaining == 0:
+                break
+            capacity = len(naturals_by_rank[rank]) - wild_counts[rank]
+            take = min(capacity, remaining)
+            if take > 0:
+                wild_counts[rank] += take
+                remaining -= take
+        if remaining:
+            return (
+                None,
+                "cannot assign all wild cards to split meld groups without violating naturals >= wilds",
+            )
+        wild_pool = list(wilds)
+        groups: dict[str, list[Card]] = {}
+        for rank, nats in naturals_by_rank.items():
+            n = wild_counts[rank]
+            groups[rank] = nats + wild_pool[:n]
+            wild_pool = wild_pool[n:]
+    else:
+        groups = {rank: list(group) for rank, group in naturals_by_rank.items()}
+
+    for rank, group in groups.items():
+        if len(group) < 3:
+            return None, f"each rank in a split meld must contain at least 3 cards (rank {rank} has {len(group)})"
+        ok_g, reason_g = validate_meld_cards(group)
+        if not ok_g:
+            return None, reason_g
 
     return list(groups.values()), "ok"
 
@@ -125,9 +155,9 @@ def validate_pickup_cards(
 
     Returns a list of meld card groups (the group containing top_discard is
     first) or (None, reason) on failure.  When allow_multi_rank is True (used
-    for the opening meld), selected hand cards may span multiple natural ranks
-    provided each rank forms its own valid meld of ≥3 cards — no wild cards
-    are permitted in a split pickup.
+    for the opening meld), selected cards may span multiple natural ranks
+    provided each rank forms its own valid meld of ≥3 cards; wild cards are
+    distributed across rank groups while preserving naturals >= wilds per group.
     """
     all_cards = hand_cards + [top_discard]
 

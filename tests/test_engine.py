@@ -183,7 +183,7 @@ class TestCreateMeld:
         assert len(melds) == 2
         assert {meld.natural_rank for meld in melds} == {"6", "Q"}
 
-    def test_opening_split_with_wild_is_rejected(self):
+    def test_opening_split_with_wild_is_allowed(self):
         eng = make_engine()
         idxs = self._draw_and_inject(
             eng,
@@ -197,10 +197,12 @@ class TestCreateMeld:
             ],
         )
 
-        with pytest.raises(
-            RuleError, match="split-rank melds cannot include wild cards"
-        ):
-            eng.create_meld(idxs)
+        result = eng.create_meld(idxs)
+
+        assert result.message == "created 2 melds"
+        melds = eng.state.players[PlayerId.NORTH].melds
+        assert len(melds) == 2
+        assert {meld.natural_rank for meld in melds} == {"A", "K"}
 
 
 class TestAddToMeld:
