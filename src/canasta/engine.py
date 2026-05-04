@@ -126,7 +126,18 @@ class CanastaEngine:
 
         top_discard = self.state.discard[-1]
         if discard_pile_is_frozen(self.state.discard):
-            ok, reason = can_pickup_frozen_discard(top_discard, cards)
+            # For the frozen-pile check only the natural pair matching the top
+            # discard rank matters.  When the player selects more than 2 cards
+            # (opening meld spanning multiple ranks / wilds), strip out the
+            # extra cards before the pair check so the pair validation is not
+            # confused by cards intended for other rank groups.
+            if len(cards) > 2:
+                check_cards = [
+                    c for c in cards if not c.is_wild() and c.rank == top_discard.rank
+                ]
+            else:
+                check_cards = cards
+            ok, reason = can_pickup_frozen_discard(top_discard, check_cards)
             if not ok:
                 player.hand.extend(cards)
                 sort_hand(player.hand)

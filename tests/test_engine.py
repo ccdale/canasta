@@ -462,6 +462,32 @@ class TestPickupDiscard:
         with pytest.raises(RuleError, match="opening meld must score"):
             eng.pickup_discard([0, 1, 2, 3, 4])
 
+    def test_frozen_pile_opening_meld_with_wild_in_second_rank(self):
+        # Regression: frozen pile pickup for an opening meld where the player
+        # provides a natural pair matching the top discard (2 Aces) AND cards
+        # for a second rank that include a wild card (K K 2wild).
+        # Previously rejected with "frozen discard pickup requires natural cards".
+        eng = make_engine()
+        self._set_discard(eng, [Card("3", "C"), Card("A", "D")])
+        # hand positions 0-1: natural Ace pair (frozen pair); 2-4: K K wild (second meld)
+        self._inject_hand(
+            eng,
+            [
+                Card("A", "S"),
+                Card("A", "H"),
+                Card("K", "S"),
+                Card("K", "H"),
+                Card("2", "C"),
+            ],
+        )
+
+        result = eng.pickup_discard([0, 1, 2, 3, 4])
+
+        melds = eng.state.players[PlayerId.NORTH].melds
+        assert len(melds) == 2
+        assert {m.natural_rank for m in melds} == {"A", "K"}
+        assert "2 melds" in result.message
+
 
 class TestScore:
     def test_no_meld_score_at_start(self):

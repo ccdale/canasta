@@ -302,13 +302,24 @@ class TestValidatePickupCards:
 
         assert groups is None
 
-    def test_split_rank_rejects_wild_cards(self):
+    def test_split_rank_allows_wild_in_non_discard_group(self):
+        # Q♠ Q♥ + top Q♦ = 3 queens; T♠ T♥ + wild 2♣ = 3-card ten meld → all valid.
         top = c("Q", "D")
         hand = [c("Q", "S"), c("Q", "H"), c("T", "S"), c("T", "H"), c("2", "C")]
         groups, msg = validate_pickup_cards(top, hand, allow_multi_rank=True)
 
+        assert groups is not None
+        assert len(groups) == 2
+        assert all(c("Q", "D").rank == card.rank for card in groups[0] if not card.is_wild())
+
+    def test_split_rank_rejects_too_many_wilds(self):
+        # 2 queens + top queen + 1 ten, but 3 wilds — wilds exceed naturals in T group.
+        top = c("Q", "D")
+        hand = [c("Q", "S"), c("Q", "H"), c("T", "S"), c("2", "C"), c("2", "H"), c("2", "D")]
+        groups, msg = validate_pickup_cards(top, hand, allow_multi_rank=True)
+
+        # T group: 1 natural, wilds would exceed it → validation fails
         assert groups is None
-        assert "wild" in msg
 
     def test_split_rank_rejects_group_with_fewer_than_3(self):
         # Only 2 tens available — tops up to 2+1=2 in group after discard added

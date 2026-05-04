@@ -139,16 +139,44 @@ def validate_pickup_cards(
     if not allow_multi_rank:
         return None, reason
 
-    # Multi-rank split: wild cards cannot be distributed unambiguously.
-    if any(card.is_wild() for card in all_cards):
-        return None, "split-rank pickup melds cannot include wild cards"
-
-    groups: dict[str, list[Card]] = {}
+    # Multi-rank split: separate naturals (grouped by rank) and wilds.
+    naturals_by_rank: dict[str, list[Card]] = {}
+    wilds: list[Card] = []
     for card in all_cards:
-        groups.setdefault(card.rank, []).append(card)
+        if card.is_wild():
+            wilds.append(card)
+        else:
+            naturals_by_rank.setdefault(card.rank, []).append(card)
 
-    if len(groups) < 2:
+    if len(naturals_by_rank) < 2:
         return None, reason  # single rank but still failed above
+
+    if wilds:
+        # Distribute wilds to rank groups that need them (fewest naturals first)
+        # while maintaining naturals >= wilds within each group.
+        wild_counts: dict[str, int] = {rank: 0 for rank in naturals_by_rank}
+        remaining = len(wilds)
+        for rank in sorted(naturals_by_rank, key=lambda r: len(naturals_by_rank[r])):
+            if remaining == 0:
+                break
+            capacity = len(naturals_by_rank[rank]) - wild_counts[rank]
+            take = min(capacity, remaining)
+            if take > 0:
+                wild_counts[rank] += take
+                remaining -= take
+        if remaining:
+            return (
+                None,
+                "cannot assign all wild cards to rank groups without violating naturals ≥ wilds",
+            )
+        wild_pool = list(wilds)
+        groups: dict[str, list[Card]] = {}
+        for rank, nats in naturals_by_rank.items():
+            n = wild_counts[rank]
+            groups[rank] = nats + wild_pool[:n]
+            wild_pool = wild_pool[n:]
+    else:
+        groups = {rank: list(cards) for rank, cards in naturals_by_rank.items()}
 
     for rank, group in groups.items():
         if len(group) < 3:
@@ -156,6 +184,9 @@ def validate_pickup_cards(
                 f"each rank in a split pickup must have at least 3 cards "
                 f"(rank {rank} has {len(group)})"
             )
+        ok_g, reason_g = validate_meld_cards(group)
+        if not ok_g:
+            return None, reason_g
 
     discard_rank = top_discard.rank
     result = [groups[discard_rank]] + [
