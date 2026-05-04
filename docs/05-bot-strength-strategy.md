@@ -132,3 +132,25 @@ Continue improving monotonic strength feel by:
 1. Expanding pickup candidate generation and ranking depth.
 2. Smoothing threshold cliffs where behavior jumps are too abrupt.
 3. Adding broader matchup telemetry across bot styles and strengths.
+
+## Deferred next steps (future session)
+Two stronger-bot strategies were intentionally deferred:
+
+1. Game-tree look-ahead search.
+2. Optional neural/learned evaluator.
+
+### 1) Game-tree look-ahead search
+This is algorithmic search over possible future actions (for example depth-limited minimax or expectimax with pruning), not a neural network by itself.
+
+Planned approach:
+1. Add depth/time-bounded search at higher strengths.
+2. Keep low strengths on the existing fast heuristic policy.
+3. Preserve deterministic behavior with seeded tie-breaking.
+
+### 2) Neural/learned evaluator (optional)
+This is a model that scores board states/moves and can be used inside search.
+
+Planned approach:
+1. Keep the current heuristic evaluator as default fallback.
+2. Add learned evaluation behind a feature flag or high-strength gate.
+3. Compare gains at equal time budgets before enabling by default.

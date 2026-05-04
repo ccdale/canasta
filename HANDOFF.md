@@ -1,14 +1,14 @@
-# Canasta Implementation Handoff (2026-05-01)
+# Canasta Implementation Handoff (2026-05-04)
 
 ## Current Status
 - Repository: /home/chris/src/canasta
 - Package: canasta
-- Current version: 2.0.3
+- Current version: 2.1.6
 - Python: >=3.12
 - Environment/tooling: uv-managed project
 - CLI entry point: canasta = canasta.cli:main
 - GUI entry point: canasta-gui = canasta.gui:main
-- Test status: 193 tests passing
+- Test status: 235 tests passing
 
 ## What Is Complete
 
@@ -19,8 +19,9 @@
 - Match play to 5000 points (highest total wins if both pass 5000 in the same round).
 
 ### Bots
-- Bot variants implemented: random, greedy, safe, aggro, planner.
+- Bot variants implemented: random, greedy, safe, aggro, planner, adaptive.
 - Deterministic seeding via --bot-seed.
+- Strength scaling implemented across heuristics and pickup behavior.
 
 ### Persistence and Stats
 - Save game to ~/.config/canasta/game.json.
@@ -65,34 +66,36 @@
 - ede30fc: Added Phase 4 bot-strength strategy document.
 - 13a26ea: Added match thresholds (15/50/90/120) and match-end logic.
 
-## Remaining Work
+### Remaining Work
 
-### Phase 4 (next)
-Goal: strengthen bot play toward effectively unbeatable performance for strong human players, while exposing a single, continuous strength control.
+### Deferred next steps (for future session)
+Goal: continue strengthening high-end bot play beyond current heuristic tiers.
 
-#### Strength control requirement
-- Add a bot strength setting from 1-100.
-- Strength 1 should preserve current bot behavior baseline.
-- Strength 100 should target practically unbeatable play.
-- Surface this control in both CLI and GUI:
-  - CLI: add an argument like --bot-strength with range validation.
-  - GUI: add a numeric control (slider or spinbutton) in New Game dialog.
+1. Add game-tree look-ahead search for stronger decision quality.
+2. Add optional learned/neural position evaluation to improve move ranking.
 
-#### Suggested implementation approach
-1. Introduce a unified bot policy layer with tunable decision depth/risk profile.
-2. Map strength bands to behavior:
-   - 1-20: current heuristic behavior with limited lookahead.
-   - 21-60: stronger meld planning, discard safety, freeze-aware pickup logic.
-   - 61-90: deeper lookahead with opponent-model heuristics.
-   - 91-100: highest search depth, strongest pruning/evaluation, conservative error tolerance.
-3. Keep deterministic reproducibility with existing --bot-seed support.
-4. Add telemetry hooks (optional): move quality score, blunder count, average search depth.
+#### 1) Game-tree look-ahead (search)
+Scope for first pass:
+1. Add a search module for bot turn simulation (depth-limited expectimax/minimax-style search).
+2. Reuse existing rules/engine legality checks for generated actions.
+3. Add pruning and strict time budget per bot turn so GUI remains responsive.
+4. Gate usage by strength (higher strengths use deeper search).
 
-#### Validation and acceptance criteria
-- Add automated bot-vs-bot ladder tests across strength bands (higher strength should outperform lower strength over large samples).
-- Add regression tests for existing legal-move/rules behavior so stronger bots do not break correctness.
-- Add performance guardrails so high strength remains responsive in GUI turn timing.
-- Define "unbeatable" operationally as statistically dominant versus current human-like baseline and lower-strength bots, not mathematically perfect play.
+Acceptance criteria:
+1. Higher search depths outperform shallower settings in ladder runs.
+2. No rule regressions in existing engine/rules tests.
+3. UI still clearly communicates bot thinking state during longer turns.
+
+#### 2) Neural/learned evaluation (optional layer)
+Scope for first pass:
+1. Keep search deterministic and use a pluggable evaluator interface.
+2. Start with heuristic evaluator baseline; add optional learned evaluator behind a feature flag.
+3. Use learned evaluator only at higher strengths or when explicitly enabled.
+
+Acceptance criteria:
+1. Learned evaluator does not reduce rules correctness (same legal move set).
+2. Measured ladder gain versus heuristic-only at matched time budgets.
+3. Graceful fallback to heuristic evaluator if model/artifact is unavailable.
 
 ## Validation Commands
 - uv sync
@@ -104,6 +107,7 @@ Goal: strengthen bot play toward effectively unbeatable performance for strong h
 - uv run canasta-gui --north safe
 - uv run canasta-gui --north aggro
 - uv run canasta-gui --north planner
+- uv run canasta-gui --north adaptive
 
 ## Workflow Notes
 - Commit in small increments.
