@@ -250,7 +250,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _bot_kind_choices() -> list[str]:
-    return ["random", "greedy", "safe", "aggro", "planner"]
+    return ["random", "greedy", "safe", "aggro", "planner", "adaptive"]
 
 
 def _validate_positive(parser: argparse.ArgumentParser, value: int, name: str) -> None:

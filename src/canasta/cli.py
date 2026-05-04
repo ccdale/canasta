@@ -145,12 +145,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Canasta CLI")
     parser.add_argument(
         "--north",
-        choices=["human", "random", "greedy", "safe", "aggro", "planner"],
+        choices=["human", "random", "greedy", "safe", "aggro", "planner", "adaptive"],
         default="human",
     )
     parser.add_argument(
         "--south",
-        choices=["human", "random", "greedy", "safe", "aggro", "planner"],
+        choices=["human", "random", "greedy", "safe", "aggro", "planner", "adaptive"],
         default="human",
     )
     parser.add_argument("--bot-seed", type=int, default=0)

@@ -4,6 +4,7 @@ import random
 from typing import Literal
 
 from canasta.bot_strategies import (
+    AdaptiveBot,
     AggroBot,
     GreedyBot,
     PlannerBot,
@@ -19,7 +20,7 @@ from canasta.rules import (
     validate_pickup_cards,
 )
 
-BotKind = Literal["random", "greedy", "safe", "aggro", "planner"]
+BotKind = Literal["random", "greedy", "safe", "aggro", "planner", "adaptive"]
 
 
 def build_bot(kind: BotKind, seed: int | None = None, strength: int = 1) -> TurnBot:
@@ -49,6 +50,8 @@ def build_bot(kind: BotKind, seed: int | None = None, strength: int = 1) -> Turn
         return AggroBot(strength=strength)
     if kind == "planner":
         return PlannerBot(strength=strength)
+    if kind == "adaptive":
+        return AdaptiveBot(rng=random.Random(seed), strength=strength)
     raise ValueError(f"unknown bot kind: {kind}")
 
 

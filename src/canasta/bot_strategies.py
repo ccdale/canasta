@@ -296,6 +296,108 @@ class PlannerBot:
         return min(safe, key=discard_key)
 
 
+@dataclass
+class AdaptiveBot:
+    """Adaptive bot: scales smoothly from random at low strength to aggressive at high.
+
+    Strength bands:
+      1-25  (random):   meld and discard choices are random among legal options.
+      26-50 (safe):     conservative — large natural groups only, defensive discards.
+      51-75 (planner):  balanced — wild-assisted melds, preserve synergy cards.
+      76-100 (aggro):   aggressive — meld the most, shed high-point naturals first.
+    """
+
+    rng: random.Random
+    name: str = "adaptive"
+    strength: int = 50
+
+    def choose_meld_indexes(
+        self,
+        hand: list[Card],
+        opening_required: bool,
+        opening_minimum: int = OPENING_MELD_MINIMUM,
+    ) -> list[int] | None:
+        candidates = _eligible_natural_meld_candidates(
+            hand, opening_required, opening_minimum
+        )
+
+        if self.strength <= 25:
+            # Random tier: pick any legal candidate at random.
+            if not candidates:
+                return None
+            return self.rng.choice(candidates)
+
+        if self.strength <= 50:
+            # Safe tier: conservative post-opening melding.
+            if not opening_required:
+                big = [c for c in candidates if len(c) >= 4]
+                if not big:
+                    return None
+                return max(big, key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)))
+            if not candidates:
+                return None
+            return min(candidates, key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)))
+
+        if self.strength <= 75:
+            # Planner tier: balanced, includes wild-assisted candidates post-opening.
+            if not opening_required:
+                candidates = candidates + _wild_augmented_candidates(hand)
+            if not candidates:
+                return None
+
+            def _planner_meld_key(idxs: list[int]) -> tuple[int, int, int]:
+                cards = [hand[i] for i in idxs]
+                return (hand_score(cards), len(idxs), _natural_density(cards))
+
+            return max(candidates, key=_planner_meld_key)
+
+        # Aggro tier (76-100): meld as much as possible.
+        if not opening_required:
+            candidates = candidates + _wild_augmented_candidates(hand)
+        if not candidates:
+            return None
+        return max(candidates, key=lambda idxs: (len(idxs), hand_score([hand[i] for i in idxs])))
+
+    def choose_discard_index(self, hand: list[Card]) -> int:
+        safe = [idx for idx, card in enumerate(hand) if can_discard(card)[0]]
+        if not safe:
+            raise RuleError("bot could not find a legal discard")
+
+        if self.strength <= 25:
+            # Random tier: discard at random.
+            return self.rng.choice(safe)
+
+        rank_counts = _rank_counts(hand)
+
+        if self.strength <= 50:
+            # Safe tier: prefer black threes, avoid wilds, shed singletons.
+            def _safe_discard_key(idx: int) -> tuple[int, int, int, int]:
+                card = hand[idx]
+                freeze_bonus = 0 if card.is_black_three() else 1
+                singleton_bonus = 0 if rank_counts[card.rank] == 1 else 1
+                wild_penalty = 1 if card.is_wild() else 0
+                return (freeze_bonus, wild_penalty, singleton_bonus, hand_score([card]))
+
+            return min(safe, key=_safe_discard_key)
+
+        if self.strength <= 75:
+            # Planner tier: keep wilds, preserve grouped ranks.
+            def _planner_discard_key(idx: int) -> tuple[int, int, int, int, int]:
+                card = hand[idx]
+                wild_penalty = 1 if card.is_wild() else 0
+                grouped_penalty = 1 if rank_counts[card.rank] > 1 else 0
+                singleton_bonus = 0 if rank_counts[card.rank] == 1 else 1
+                freeze_bonus = 0 if card.is_black_three() else 1
+                return (wild_penalty, grouped_penalty, singleton_bonus, freeze_bonus, hand_score([card]))
+
+            return min(safe, key=_planner_discard_key)
+
+        # Aggro tier: shed highest-point naturals, keep wilds.
+        non_wild = [idx for idx in safe if not hand[idx].is_wild()]
+        discard_pool = non_wild if non_wild else safe
+        return max(discard_pool, key=lambda idx: hand_score([hand[idx]]))
+
+
 def _eligible_natural_meld_candidates(
     hand: list[Card],
     opening_required: bool,

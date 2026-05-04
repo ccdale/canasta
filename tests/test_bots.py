@@ -1,6 +1,7 @@
 """Tests for canasta.bots."""
 
 from canasta.bot_strategies import (
+    AdaptiveBot,
     AggroBot,
     GreedyBot,
     PlannerBot,
@@ -351,3 +352,71 @@ class TestWildAugmentedCandidates:
         assert idxs is not None
         selected = [hand[i] for i in idxs]
         assert any(c.is_wild() for c in selected)
+
+
+class TestAdaptiveBot:
+    def _rng(self) -> __import__("random").Random:
+        return __import__("random").Random(42)
+
+    def test_build_adaptive(self):
+        from canasta.bots import build_bot
+        bot = build_bot("adaptive", seed=1, strength=50)
+        assert bot.name == "adaptive"
+
+    def test_low_strength_meld_is_random(self):
+        # At strength 10 choose_meld_indexes returns a random candidate or None.
+        hand = [Card("A", "S"), Card("A", "H"), Card("A", "D"), Card("K", "S")]
+        bot = AdaptiveBot(rng=self._rng(), strength=10)
+        # Should not raise; result is None or a valid index list.
+        result = bot.choose_meld_indexes(hand, opening_required=True)
+        if result is not None:
+            assert all(0 <= i < len(hand) for i in result)
+
+    def test_low_strength_discard_is_random(self):
+        hand = [Card("A", "S"), Card("K", "H"), Card("7", "D")]
+        bot = AdaptiveBot(rng=self._rng(), strength=10)
+        idx = bot.choose_discard_index(hand)
+        assert 0 <= idx < len(hand)
+
+    def test_safe_tier_never_melds_small_post_opening_group(self):
+        hand = [Card("A", "S"), Card("A", "H"), Card("A", "D")]
+        bot = AdaptiveBot(rng=self._rng(), strength=35)
+        # 3 aces < 4 — safe tier skips post-opening melds below 4-card threshold.
+        assert bot.choose_meld_indexes(hand, opening_required=False) is None
+
+    def test_safe_tier_discards_defensively(self):
+        # Prefers black three over high-point card.
+        hand = [Card("K", "S"), Card("3", "S"), Card("A", "H")]
+        bot = AdaptiveBot(rng=self._rng(), strength=40)
+        idx = bot.choose_discard_index(hand)
+        assert hand[idx].label() == "3S"
+
+    def test_planner_tier_melds_with_wild(self):
+        hand = [Card("K", "S"), Card("K", "H"), Card("JOKER", ""), Card("4", "D")]
+        bot = AdaptiveBot(rng=self._rng(), strength=65)
+        idxs = bot.choose_meld_indexes(hand, opening_required=False)
+        assert idxs is not None
+        selected = [hand[i] for i in idxs]
+        assert any(c.is_wild() for c in selected)
+
+    def test_planner_tier_preserves_wilds_on_discard(self):
+        hand = [Card("2", "S"), Card("7", "H"), Card("8", "D")]
+        bot = AdaptiveBot(rng=self._rng(), strength=65)
+        idx = bot.choose_discard_index(hand)
+        assert hand[idx].rank != "2"
+
+    def test_aggro_tier_melds_most_cards(self):
+        hand = [
+            Card("A", "S"), Card("A", "H"), Card("A", "D"), Card("A", "C"),
+            Card("K", "S"), Card("K", "H"), Card("K", "D"),
+        ]
+        bot = AdaptiveBot(rng=self._rng(), strength=90)
+        idxs = bot.choose_meld_indexes(hand, opening_required=True)
+        assert idxs is not None
+        assert len(idxs) >= 6
+
+    def test_aggro_tier_sheds_high_point_natural_not_wild(self):
+        hand = [Card("2", "S"), Card("A", "H"), Card("7", "D")]
+        bot = AdaptiveBot(rng=self._rng(), strength=90)
+        idx = bot.choose_discard_index(hand)
+        assert hand[idx].label() == "AH"

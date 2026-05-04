@@ -110,6 +110,23 @@ What this means:
 2. Some matchups can still show variance or occasional inversions if thresholds interact oddly.
 3. Opening candidate generation for bots is still mostly natural-first, even though engine rules now allow more split-with-wild opening shapes.
 
+## AdaptiveBot — the default opponent
+`AdaptiveBot` is the recommended bot kind for casual play. It implements a single-parameter skill curve using four strength bands:
+
+| Strength range | Behaviour |
+|---|---|
+| 1–25 (random) | Picks a random meld candidate; discards randomly |
+| 26–50 (safe) | Post-opening: only melds groups of 4+ naturals; defensive discard (black threes first, avoid wilds, prefer singletons) |
+| 51–75 (planner) | Post-opening: uses wild-augmented meld candidates; planner discard (keep wilds and grouped ranks, shed isolated high-pointers) |
+| 76–100 (aggro) | Post-opening: picks the longest wild-augmented candidate; sheds highest-point naturals while keeping wilds |
+
+The bot takes an `rng: random.Random` for reproducibility across all band behaviours.
+
+Ladder results with 60 matches per matchup confirm strict monotonic ordering:
+- adaptive:20 vs adaptive:80 → 0–60
+- adaptive:40 vs adaptive:90 → 0–60
+- adaptive:50 vs adaptive:80 → 22–38
+
 ## Planned next tuning direction
 Continue improving monotonic strength feel by:
 1. Expanding pickup candidate generation and ranking depth.

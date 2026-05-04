@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-_BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner"]
+_BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner", "adaptive"]
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

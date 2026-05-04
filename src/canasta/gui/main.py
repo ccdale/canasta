@@ -43,7 +43,7 @@ from canasta.gui.theme import set_gtk_imports as set_theme_gtk_imports
 from canasta.gui.widgets import set_gtk_imports
 from canasta.model import PlayerId
 
-_BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner"]
+_BOT_CHOICES = ["human", "random", "greedy", "safe", "aggro", "planner", "adaptive"]
 
 
 def main(argv: list[str] | None = None) -> int:

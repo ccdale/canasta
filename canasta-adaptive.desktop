@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Canasta vs Adaptive
+Comment=Play Canasta against the Adaptive bot (scales with strength)
+Path=/home/chris/src/canasta
+Exec=uv run canasta-gui --north adaptive
+Icon=/home/chris/.local/share/canasta/back-planner.png
+Terminal=false
+Categories=Game;CardGame;
+StartupNotify=true
