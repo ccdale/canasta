@@ -91,6 +91,14 @@ def build_game_layout(window, Gtk) -> None:
     new_game_button.connect("clicked", window._show_new_game_dialog)
     controls_row.append(new_game_button)
 
+    window.reminder_button = Gtk.Button(label="Reminder")
+    window.reminder_button.connect("clicked", window._on_reminder)
+    controls_row.append(window.reminder_button)
+
+    window.bot_light_label = Gtk.Label(xalign=0)
+    window.bot_light_label.add_css_class("bot-light")
+    controls_row.append(window.bot_light_label)
+
     # Row 4: Status
     window.info_label = Gtk.Label(xalign=0)
     window.info_label.set_wrap(True)

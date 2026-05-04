@@ -114,7 +114,7 @@ def on_next_round(window) -> None:
 def on_discard_pile_clicked(window) -> None:
     """Click on the discard pile: auto-select matching hand cards and attempt pickup.
 
-    Frozen pile: requires exactly 2 natural cards matching the top discard rank.
+    Frozen pile: requires at least 2 natural cards matching the top discard rank.
     Unfrozen pile: selects all natural matching cards.
 
     On opening-meld shortfall, the auto-selection is kept in place and a hint is
@@ -186,3 +186,11 @@ def on_discard_pile_clicked(window) -> None:
             window.ui_state.selected_hand_indexes.clear()
             window._set_status(f"error: {exc}")
             window._refresh()
+
+
+def on_reminder(window) -> None:
+    """Show the previous bot move so the human can catch up after waiting."""
+    if not window.ui_state.last_bot_move_message:
+        window._set_status("No bot move to remind yet.")
+        return
+    window._set_status(f"Reminder: {window.ui_state.last_bot_move_message}")

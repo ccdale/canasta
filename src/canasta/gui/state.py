@@ -30,6 +30,7 @@ class UIState:
     bot_indicator_actor: PlayerId | None = None
     bot_indicator_name: str = ""
     bot_indicator_step: int = 0
+    last_bot_move_message: str = ""
 
     # Draw preview (shows newly drawn cards briefly)
     draw_preview_timeout_id: int | None = None

@@ -31,6 +31,16 @@ TABLE_CSS = """
     border-radius: 8px;
     padding: 2px;
 }
+.bot-light {
+    font-weight: bold;
+    margin-left: 12px;
+}
+.bot-light-thinking {
+    color: #c62828;
+}
+.bot-light-ready {
+    color: #2e7d32;
+}
 """
 
 Gtk = None

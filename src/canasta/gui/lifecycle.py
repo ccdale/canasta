@@ -39,6 +39,7 @@ def reset_game(
     window.controllers = build_controllers(north, south, bot_seed, bot_strength)
     window.engine = CanastaEngine()
     window.ui_state.reset_selection()
+    window.ui_state.last_bot_move_message = ""
     window.ui_state.last_winner = None
     window._set_status(initial_status_message(window))
     window._refresh()
@@ -58,6 +59,7 @@ def load_saved_game(window) -> None:
     # Preserve current controller setup since we don't store it.
     window.engine.state = saved_state
     window.ui_state.reset_selection()
+    window.ui_state.last_bot_move_message = ""
     window.ui_state.last_winner = None
     window._set_status("Game restored from save")
     window._refresh()

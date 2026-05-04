@@ -1,6 +1,7 @@
 import pytest
 
 from canasta.gui import main
+from canasta.gui.actions import on_reminder
 from canasta.gui.bootstrap import parse_args
 from canasta.gui.utilities import resolve_target_meld_index
 from canasta.model import Card, Meld, RuleError
@@ -52,14 +53,45 @@ class TestParseArgs:
         - canasta-safe.desktop: uv run canasta-gui --north safe
         - canasta-aggro.desktop: uv run canasta-gui --north aggro
         - canasta-planner.desktop: uv run canasta-gui --north planner
+        - canasta-adaptive.desktop: uv run canasta-gui --north adaptive
         """
-        variants = ["random", "greedy", "safe", "aggro", "planner"]
+        variants = ["random", "greedy", "safe", "aggro", "planner", "adaptive"]
         for variant in variants:
             args = parse_args(["--north", variant])
             assert args.north == variant, f"Failed to parse --north {variant}"
             assert args.south == "human", (
                 f"Default south should be human for --north {variant}"
             )
+
+
+class _DummyUIState:
+    def __init__(self, message: str = "") -> None:
+        self.last_bot_move_message = message
+
+
+class _DummyWindow:
+    def __init__(self, message: str = "") -> None:
+        self.ui_state = _DummyUIState(message)
+        self.status = ""
+
+    def _set_status(self, message: str) -> None:
+        self.status = message
+
+
+class TestReminderAction:
+    def test_reminder_shows_previous_bot_move(self):
+        window = _DummyWindow("[north:adaptive] drew 2 cards | discarded KH")
+
+        on_reminder(window)
+
+        assert window.status.startswith("Reminder: [north:adaptive]")
+
+    def test_reminder_without_history_shows_helpful_message(self):
+        window = _DummyWindow("")
+
+        on_reminder(window)
+
+        assert window.status == "No bot move to remind yet."
 
 
 class TestResolveTargetMeldIndex:

@@ -18,6 +18,7 @@ from canasta.gui.actions import (
     on_meld,
     on_next_round,
     on_pickup,
+    on_reminder,
 )
 from canasta.gui.bootstrap import parse_args, reexec_with_system_python
 from canasta.gui.bot_runner import BotRunner, set_glib_import
@@ -105,6 +106,7 @@ def main(argv: list[str] | None = None) -> int:
             )
 
             build_game_layout(self, Gtk)
+            self._set_bot_light(thinking=False)
 
             self._set_status(self._initial_status_message())
             self._refresh()
@@ -153,6 +155,27 @@ def main(argv: list[str] | None = None) -> int:
 
         def _set_status(self, message: str) -> None:
             self.status_label.set_text(message)
+
+        def _set_bot_light(
+            self,
+            *,
+            thinking: bool,
+            actor: PlayerId | None = None,
+            name: str = "",
+        ) -> None:
+            self.bot_light_label.remove_css_class("bot-light-thinking")
+            self.bot_light_label.remove_css_class("bot-light-ready")
+            if thinking:
+                self.bot_light_label.add_css_class("bot-light-thinking")
+                if actor is not None and name:
+                    self.bot_light_label.set_text(
+                        f"● Bot thinking: {actor.value}:{name}"
+                    )
+                else:
+                    self.bot_light_label.set_text("● Bot thinking")
+                return
+            self.bot_light_label.add_css_class("bot-light-ready")
+            self.bot_light_label.set_text("● Bot ready")
 
         def _update_stats_display(self) -> None:
             """Update the displayed game statistics."""
@@ -214,6 +237,9 @@ def main(argv: list[str] | None = None) -> int:
 
         def _on_discard_pile_clicked(self) -> None:
             on_discard_pile_clicked(self)
+
+        def _on_reminder(self, _button: Gtk.Button) -> None:
+            on_reminder(self)
 
     class CanastaApplication(Gtk.Application):
         def __init__(self, args: argparse.Namespace) -> None:
