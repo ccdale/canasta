@@ -333,10 +333,16 @@ class AdaptiveBot:
                 big = [c for c in candidates if len(c) >= 4]
                 if not big:
                     return None
-                return max(big, key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)))
+                return max(
+                    big,
+                    key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)),
+                )
             if not candidates:
                 return None
-            return min(candidates, key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)))
+            return min(
+                candidates,
+                key=lambda idxs: (hand_score([hand[i] for i in idxs]), len(idxs)),
+            )
 
         if self.strength <= 75:
             # Planner tier: balanced, includes wild-assisted candidates post-opening.
@@ -356,7 +362,10 @@ class AdaptiveBot:
             candidates = candidates + _wild_augmented_candidates(hand)
         if not candidates:
             return None
-        return max(candidates, key=lambda idxs: (len(idxs), hand_score([hand[i] for i in idxs])))
+        return max(
+            candidates,
+            key=lambda idxs: (len(idxs), hand_score([hand[i] for i in idxs])),
+        )
 
     def choose_discard_index(self, hand: list[Card]) -> int:
         safe = [idx for idx, card in enumerate(hand) if can_discard(card)[0]]
@@ -388,7 +397,13 @@ class AdaptiveBot:
                 grouped_penalty = 1 if rank_counts[card.rank] > 1 else 0
                 singleton_bonus = 0 if rank_counts[card.rank] == 1 else 1
                 freeze_bonus = 0 if card.is_black_three() else 1
-                return (wild_penalty, grouped_penalty, singleton_bonus, freeze_bonus, hand_score([card]))
+                return (
+                    wild_penalty,
+                    grouped_penalty,
+                    singleton_bonus,
+                    freeze_bonus,
+                    hand_score([card]),
+                )
 
             return min(safe, key=_planner_discard_key)
 

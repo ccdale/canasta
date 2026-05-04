@@ -360,6 +360,7 @@ class TestAdaptiveBot:
 
     def test_build_adaptive(self):
         from canasta.bots import build_bot
+
         bot = build_bot("adaptive", seed=1, strength=50)
         assert bot.name == "adaptive"
 
@@ -407,8 +408,13 @@ class TestAdaptiveBot:
 
     def test_aggro_tier_melds_most_cards(self):
         hand = [
-            Card("A", "S"), Card("A", "H"), Card("A", "D"), Card("A", "C"),
-            Card("K", "S"), Card("K", "H"), Card("K", "D"),
+            Card("A", "S"),
+            Card("A", "H"),
+            Card("A", "D"),
+            Card("A", "C"),
+            Card("K", "S"),
+            Card("K", "H"),
+            Card("K", "D"),
         ]
         bot = AdaptiveBot(rng=self._rng(), strength=90)
         idxs = bot.choose_meld_indexes(hand, opening_required=True)
